@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from uuid import UUID
 
 from orchestrator.core.database import get_db
@@ -27,17 +27,23 @@ class OrchestratorAgent:
     - Dispatch tasks to role queues
     - Monitor task completion
     - Validate quality gates
+    - Enforce gate_blocks (tasks blocked by gate failures)
     - Handle errors and retries
     """
 
     def __init__(self, run_id: str):
         self.run_id = run_id
+        self._task_spec_cache: Dict[str, TaskSpec] = {}
 
     def create_plan(self, goal: str, context: Dict[str, Any] = None) -> WorkflowPlan:
         """Create a workflow plan for the given goal."""
         # For now, use the standard workflow
         # In production, this could use LLM to customize the plan
         plan = create_standard_workflow()
+
+        # Cache task specs for gate_blocks lookup
+        for spec in plan.tasks:
+            self._task_spec_cache[spec.task_type] = spec
 
         # Set success/acceptance criteria based on goal
         plan.success_criteria = [
@@ -73,7 +79,7 @@ class OrchestratorAgent:
             run.acceptance_criteria = plan.acceptance_criteria
             db.commit()
 
-            # Create tasks from plan
+            # Create tasks from plan, including gate_blocks metadata
             for task_spec in plan.tasks:
                 idempotency_key = task_spec.generate_idempotency_key(self.run_id)
 
@@ -98,6 +104,11 @@ class OrchestratorAgent:
                     priority=task_spec.priority,
                     idempotency_key=idempotency_key,
                     max_retries=task_spec.max_retries,
+                    # Store gate metadata in task for later enforcement
+                    metadata={
+                        "is_gate": task_spec.is_gate,
+                        "gate_blocks": task_spec.gate_blocks,
+                    },
                 )
                 db.add(task)
 
@@ -130,8 +141,16 @@ class OrchestratorAgent:
             return run
 
     def get_ready_tasks(self) -> List[Task]:
-        """Get tasks that are ready to execute."""
+        """Get tasks that are ready to execute.
+
+        A task is ready when:
+        1. It's in PENDING status
+        2. All its dependencies are completed
+        3. It's not blocked by a failed gate (gate_blocks enforcement)
+        """
         with get_db() as db:
+            run = db.query(Run).filter(Run.id == UUID(self.run_id)).first()
+
             # Get all tasks for this run
             all_tasks = db.query(Task).filter(
                 Task.run_id == UUID(self.run_id)
@@ -143,12 +162,27 @@ class OrchestratorAgent:
                 if t.status == TaskStatus.COMPLETED
             }
 
-            # Find tasks where all dependencies are met
+            # Build task type to task mapping
+            task_by_type = {t.task_type: t for t in all_tasks}
+
+            # Get blocked task types based on gate failures
+            blocked_by_gates = self._get_gate_blocked_tasks(run, all_tasks)
+
+            # Find tasks where all dependencies are met and not blocked
             ready = []
             for task in all_tasks:
                 if task.status != TaskStatus.PENDING:
                     continue
 
+                # Check if blocked by a failed gate
+                if task.task_type in blocked_by_gates:
+                    logger.debug(
+                        f"Task {task.task_type} blocked by failed gate: "
+                        f"{blocked_by_gates[task.task_type]}"
+                    )
+                    continue
+
+                # Check dependencies
                 deps_met = all(dep in completed_ids for dep in task.dependencies)
                 if deps_met:
                     ready.append(task)
@@ -156,6 +190,45 @@ class OrchestratorAgent:
             # Sort by priority (higher first)
             ready.sort(key=lambda t: t.priority, reverse=True)
             return ready
+
+    def _get_gate_blocked_tasks(
+        self, run: Run, all_tasks: List[Task]
+    ) -> Dict[str, str]:
+        """Get tasks that are blocked by failed gates.
+
+        Returns a dict of {task_type: blocking_gate_name}
+        """
+        blocked = {}
+
+        # Find all gate tasks and their status
+        for task in all_tasks:
+            metadata = task.metadata or {}
+            if not metadata.get("is_gate"):
+                continue
+
+            gate_blocks = metadata.get("gate_blocks", [])
+            if not gate_blocks:
+                continue
+
+            # Check if this gate has failed
+            gate_failed = False
+            if task.assigned_role == "code_reviewer":
+                gate_failed = run.code_review_status == GateStatus.FAILED
+            elif task.assigned_role == "security_reviewer":
+                gate_failed = run.security_review_status == GateStatus.FAILED
+            elif task.assigned_role == "design_reviewer":
+                # Design review gate (if we add it to the model)
+                gate_failed = task.status == TaskStatus.FAILED
+
+            if gate_failed:
+                # Block all tasks in gate_blocks
+                for blocked_type in gate_blocks:
+                    blocked[blocked_type] = task.task_type
+                    logger.info(
+                        f"Task '{blocked_type}' blocked by failed gate '{task.task_type}'"
+                    )
+
+        return blocked
 
     def dispatch_task(self, task: Task) -> str:
         """Dispatch a task to the appropriate worker queue."""
@@ -208,7 +281,7 @@ class OrchestratorAgent:
         with get_db() as db:
             run = db.query(Run).filter(Run.id == UUID(self.run_id)).first()
 
-            # Check if all tasks are completed
+            # Check if all tasks are completed (or skipped)
             pending_tasks = db.query(Task).filter(
                 Task.run_id == UUID(self.run_id),
                 Task.status.not_in([TaskStatus.COMPLETED, TaskStatus.SKIPPED])
@@ -217,11 +290,13 @@ class OrchestratorAgent:
             if pending_tasks > 0:
                 return False
 
-            # Check quality gates
-            if settings.require_code_review and run.code_review_status != GateStatus.PASSED:
-                return False
-            if settings.require_security_review and run.security_review_status != GateStatus.PASSED:
-                return False
+            # Check quality gates (waived gates also count as passed)
+            if settings.require_code_review:
+                if run.code_review_status not in [GateStatus.PASSED, GateStatus.WAIVED]:
+                    return False
+            if settings.require_security_review:
+                if run.security_review_status not in [GateStatus.PASSED, GateStatus.WAIVED]:
+                    return False
 
             return True
 
@@ -276,6 +351,32 @@ class OrchestratorAgent:
                 })
                 return False
 
+    def skip_blocked_tasks(self) -> List[str]:
+        """Skip tasks that are blocked by failed gates and cannot proceed.
+
+        Returns list of skipped task IDs.
+        """
+        with get_db() as db:
+            run = db.query(Run).filter(Run.id == UUID(self.run_id)).first()
+            all_tasks = db.query(Task).filter(Task.run_id == UUID(self.run_id)).all()
+
+            blocked = self._get_gate_blocked_tasks(run, all_tasks)
+            skipped = []
+
+            for task in all_tasks:
+                if task.status == TaskStatus.PENDING and task.task_type in blocked:
+                    task.status = TaskStatus.SKIPPED
+                    task.error_message = f"Skipped due to failed gate: {blocked[task.task_type]}"
+                    skipped.append(str(task.id))
+
+                    self._record_event(db, "task_skipped", {
+                        "task_id": str(task.id),
+                        "reason": f"Blocked by gate: {blocked[task.task_type]}",
+                    })
+
+            db.commit()
+            return skipped
+
     def get_status(self) -> Dict[str, Any]:
         """Get the current status of the run."""
         with get_db() as db:
@@ -288,6 +389,9 @@ class OrchestratorAgent:
 
             artifacts = db.query(Artifact).filter(Artifact.run_id == UUID(self.run_id)).all()
 
+            # Get blocked tasks info
+            blocked_by_gates = self._get_gate_blocked_tasks(run, tasks)
+
             return {
                 "run_id": self.run_id,
                 "status": run.status.value,
@@ -299,11 +403,14 @@ class OrchestratorAgent:
                     "security_review": run.security_review_status.value,
                 },
                 "tasks": task_summary,
+                "blocked_tasks": list(blocked_by_gates.keys()),
                 "artifacts_count": len(artifacts),
                 "blocked_reason": run.blocked_reason,
                 "created_at": run.created_at.isoformat(),
                 "started_at": run.started_at.isoformat() if run.started_at else None,
                 "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                "tokens_used": run.tokens_used,
+                "total_cost_usd": run.total_cost_usd,
             }
 
     def _record_event(self, db, event_type: str, data: Dict[str, Any]) -> None:

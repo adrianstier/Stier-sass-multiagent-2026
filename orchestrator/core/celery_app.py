@@ -1,6 +1,7 @@
-"""Celery application configuration with role-based queues."""
+"""Celery application configuration with role-based queues and beat scheduler."""
 
 from celery import Celery
+from celery.schedules import crontab
 from kombu import Queue
 
 from .config import settings, ROLE_QUEUES, ALL_QUEUES
@@ -47,6 +48,10 @@ celery_app.conf.update(
 
     # Task routes - map tasks to queues
     task_routes={
+        "orchestrator.agents.tasks.execute_agent_task": {"queue": "q_orch"},
+        "orchestrator.agents.tasks.orchestrator_tick": {"queue": "q_orch"},
+        "orchestrator.agents.tasks.start_run": {"queue": "q_orch"},
+        "orchestrator.agents.tasks.monitor_active_runs": {"queue": "q_orch"},
         "orchestrator.agents.orchestrator.*": {"queue": "q_orch"},
         "orchestrator.agents.business_analyst.*": {"queue": "q_ba"},
         "orchestrator.agents.project_manager.*": {"queue": "q_pm"},
@@ -57,6 +62,24 @@ celery_app.conf.update(
         "orchestrator.agents.frontend_engineer.*": {"queue": "q_fe"},
         "orchestrator.agents.code_reviewer.*": {"queue": "q_cr"},
         "orchestrator.agents.security_reviewer.*": {"queue": "q_sec"},
+    },
+
+    # ==========================================================================
+    # Celery Beat Schedule - Automatic orchestration
+    # ==========================================================================
+    beat_schedule={
+        # Monitor all active runs every 30 seconds
+        "monitor-active-runs": {
+            "task": "orchestrator.agents.tasks.monitor_active_runs",
+            "schedule": 30.0,  # Every 30 seconds
+            "options": {"queue": "q_orch"},
+        },
+        # Cleanup stale tasks every 5 minutes
+        "cleanup-stale-tasks": {
+            "task": "orchestrator.agents.tasks.cleanup_stale_tasks",
+            "schedule": 300.0,  # Every 5 minutes
+            "options": {"queue": "q_orch"},
+        },
     },
 )
 
