@@ -212,7 +212,7 @@ def _read_artifact(artifact_id: str) -> Optional[Dict[str, Any]]:
             "name": artifact.name,
             "content": artifact.content,
             "content_type": artifact.content_type,
-            "metadata": artifact.metadata,
+            "metadata": artifact.artifact_metadata,
             "created_at": artifact.created_at.isoformat(),
         }
 

@@ -166,7 +166,7 @@ def mock_artifact() -> MagicMock:
     artifact.name = "test_artifact"
     artifact.content_type = "text/markdown"
     artifact.content = "# Test Content"
-    artifact.metadata = {}
+    artifact.artifact_metadata = {}
     artifact.produced_by = "business_analyst"
     artifact.created_at = datetime.utcnow()
     return artifact

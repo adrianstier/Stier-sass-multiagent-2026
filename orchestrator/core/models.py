@@ -142,6 +142,9 @@ class Task(Base):
     result = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
 
+    # Additional task metadata (for gate_blocks, is_gate flag, etc.)
+    task_metadata = Column(JSON, default=dict)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -231,7 +234,7 @@ class Artifact(Base):
     # Content
     content_type = Column(String(100), default="text/markdown")  # MIME type
     content = Column(Text, nullable=False)
-    metadata = Column(JSON, default=dict)  # Additional metadata
+    artifact_metadata = Column(JSON, default=dict)  # Additional artifact metadata
 
     # Validation
     is_valid = Column(Boolean, nullable=True)
@@ -251,4 +254,85 @@ class Artifact(Base):
         Index("ix_artifacts_run_id", "run_id"),
         Index("ix_artifacts_artifact_type", "artifact_type"),
         Index("ix_artifacts_produced_by", "produced_by"),
+    )
+
+
+class WebhookEventType(str, enum.Enum):
+    """Types of events that can trigger webhooks."""
+    RUN_STARTED = "run.started"
+    RUN_COMPLETED = "run.completed"
+    RUN_FAILED = "run.failed"
+    RUN_PAUSED = "run.paused"
+    TASK_STARTED = "task.started"
+    TASK_COMPLETED = "task.completed"
+    TASK_FAILED = "task.failed"
+    GATE_PASSED = "gate.passed"
+    GATE_FAILED = "gate.failed"
+    GATE_WAIVED = "gate.waived"
+    ARTIFACT_CREATED = "artifact.created"
+
+
+class Webhook(Base):
+    """Webhook registration for real-time event notifications."""
+
+    __tablename__ = "webhooks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    organization_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    created_by_user_id = Column(UUID(as_uuid=True), nullable=True)
+
+    # Webhook configuration
+    name = Column(String(255), nullable=False)
+    url = Column(String(2048), nullable=False)
+    secret = Column(String(255), nullable=True)  # For HMAC signature verification
+
+    # Event subscriptions (JSON array of event types)
+    events = Column(JSON, default=list)  # List of WebhookEventType values
+
+    # Optional filtering
+    run_id_filter = Column(UUID(as_uuid=True), nullable=True)  # Only for specific run
+
+    # Status
+    is_active = Column(Boolean, default=True)
+    failure_count = Column(Integer, default=0)
+    last_failure_at = Column(DateTime, nullable=True)
+    last_success_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_webhooks_organization_id", "organization_id"),
+        Index("ix_webhooks_is_active", "is_active"),
+    )
+
+
+class WebhookDelivery(Base):
+    """Log of webhook delivery attempts."""
+
+    __tablename__ = "webhook_deliveries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    webhook_id = Column(UUID(as_uuid=True), ForeignKey("webhooks.id"), nullable=False)
+
+    # Event details
+    event_type = Column(String(100), nullable=False)
+    event_id = Column(UUID(as_uuid=True), nullable=True)  # Reference to Event if applicable
+    payload = Column(JSON, nullable=False)
+
+    # Delivery status
+    status = Column(String(50), default="pending")  # pending, success, failed
+    http_status_code = Column(Integer, nullable=True)
+    response_body = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    # Timing
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    delivered_at = Column(DateTime, nullable=True)
+    retry_count = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index("ix_webhook_deliveries_webhook_id", "webhook_id"),
+        Index("ix_webhook_deliveries_created_at", "created_at"),
     )

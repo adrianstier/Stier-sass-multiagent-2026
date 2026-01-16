@@ -202,7 +202,7 @@ class OrchestratorAgent:
 
         # Find all gate tasks and their status
         for task in all_tasks:
-            metadata = task.metadata or {}
+            metadata = task.task_metadata or {}
             if not metadata.get("is_gate"):
                 continue
 
