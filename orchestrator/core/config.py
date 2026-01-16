@@ -1,5 +1,6 @@
 """Configuration settings for the orchestration system."""
 
+import secrets
 from pydantic_settings import BaseSettings
 from typing import Optional
 import os
@@ -16,6 +17,12 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
+    # Authentication
+    jwt_secret_key: str = secrets.token_urlsafe(32)  # Override in production!
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = 7
+
     # LLM Configuration
     anthropic_api_key: Optional[str] = None
     llm_model: str = "claude-sonnet-4-20250514"
@@ -30,9 +37,22 @@ class Settings(BaseSettings):
     require_code_review: bool = True
     require_security_review: bool = True
 
+    # Rate limiting
+    rate_limit_enabled: bool = True
+    default_rate_limit: int = 120  # requests per minute
+    run_create_rate_limit: int = 10  # new runs per minute
+
+    # Cost controls
+    default_run_token_budget: int = 100000  # 100k tokens per run
+    default_org_monthly_limit: int = 1000000  # 1M tokens per month
+
     # Observability
     log_level: str = "INFO"
+    log_format: str = "json"  # json or text
     redact_sensitive_data: bool = True
+
+    # CORS
+    cors_origins: str = "*"  # Comma-separated origins or * for all
 
     class Config:
         env_file = ".env"

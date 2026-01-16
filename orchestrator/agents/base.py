@@ -1,7 +1,6 @@
 """Base agent class with LLM integration and tool execution."""
 
 import json
-import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -11,10 +10,16 @@ from anthropic import Anthropic
 
 from orchestrator.core.config import settings
 from orchestrator.core.database import get_db
-from orchestrator.core.models import Task, Event, Artifact, TaskStatus
+from orchestrator.core.models import Run, Task, Event, Artifact, TaskStatus
+from orchestrator.core.logging import get_logger
+from orchestrator.core.rate_limit import (
+    get_budget_enforcer,
+    TokenBudgetError,
+    calculate_cost,
+)
 from orchestrator.tools import ToolExecutor, ToolResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseAgent(ABC):
@@ -138,11 +143,16 @@ class BaseAgent(ABC):
 
         full_user_prompt = user_prompt + context_str
 
+        # Check token budget BEFORE making LLM call
+        estimated_tokens = self._estimate_tokens(system_prompt, full_user_prompt)
+        self._check_budget(estimated_tokens)
+
         # Record the LLM request
         self._record_event("llm_request", {
             "model": settings.llm_model,
             "system_prompt_length": len(system_prompt),
             "user_prompt_length": len(full_user_prompt),
+            "estimated_tokens": estimated_tokens,
         })
 
         # Make the API call
@@ -156,15 +166,80 @@ class BaseAgent(ABC):
         )
 
         response_text = message.content[0].text
-        tokens_used = message.usage.input_tokens + message.usage.output_tokens
+        input_tokens = message.usage.input_tokens
+        output_tokens = message.usage.output_tokens
+        total_tokens = input_tokens + output_tokens
+
+        # Calculate cost
+        cost = calculate_cost(settings.llm_model, input_tokens, output_tokens)
+
+        # Update run token usage and cost
+        self._update_usage(total_tokens, cost)
 
         # Record the response
         self._record_event("llm_response", {
-            "tokens_used": tokens_used,
+            "tokens_used": total_tokens,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "cost_usd": cost,
             "response_length": len(response_text),
         })
 
         return response_text
+
+    def _estimate_tokens(self, system_prompt: str, user_prompt: str) -> int:
+        """Estimate tokens for a request (rough approximation)."""
+        # Rough estimate: ~4 chars per token for English text
+        total_chars = len(system_prompt) + len(user_prompt)
+        estimated_input = total_chars // 4
+        estimated_output = settings.llm_max_tokens  # Assume worst case
+        return estimated_input + estimated_output
+
+    def _check_budget(self, estimated_tokens: int) -> None:
+        """Check if request is within budget limits."""
+        with get_db() as db:
+            run = db.query(Run).filter(Run.id == UUID(self.run_id)).first()
+            if not run:
+                raise ValueError(f"Run not found: {self.run_id}")
+
+            try:
+                enforcer = get_budget_enforcer()
+                enforcer.check_budget(
+                    org_id=str(run.organization_id),
+                    run_budget=run.budget_tokens,
+                    run_used=run.tokens_used,
+                    tokens_needed=estimated_tokens,
+                )
+            except TokenBudgetError as e:
+                logger.error(
+                    "token_budget_exceeded",
+                    run_id=self.run_id,
+                    used=e.used,
+                    limit=e.limit,
+                )
+                self._record_event("budget_exceeded", {
+                    "used": e.used,
+                    "limit": e.limit,
+                    "error": str(e),
+                })
+                raise
+
+    def _update_usage(self, tokens: int, cost: float) -> None:
+        """Update run's token usage and cost."""
+        with get_db() as db:
+            run = db.query(Run).filter(Run.id == UUID(self.run_id)).first()
+            if run:
+                run.tokens_used = (run.tokens_used or 0) + tokens
+                current_cost = float(run.total_cost_usd or "0")
+                run.total_cost_usd = str(round(current_cost + cost, 6))
+                db.commit()
+
+                # Also update organization usage
+                try:
+                    enforcer = get_budget_enforcer()
+                    enforcer.record_usage(str(run.organization_id), tokens)
+                except Exception as e:
+                    logger.warning(f"Failed to record org usage: {e}")
 
     def _generate_mock_response(self, user_prompt: str) -> str:
         """Generate a mock response for testing."""

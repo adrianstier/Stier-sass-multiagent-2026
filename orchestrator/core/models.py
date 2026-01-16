@@ -57,6 +57,10 @@ class Run(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
+    # Multi-tenancy - required for SaaS
+    organization_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    created_by_user_id = Column(UUID(as_uuid=True), nullable=True)
+
     # Goal and context
     goal = Column(Text, nullable=False)
     context = Column(JSON, default=dict)  # Additional context/parameters
@@ -74,6 +78,9 @@ class Run(Base):
     current_iteration = Column(Integer, default=0)
     budget_tokens = Column(Integer, nullable=True)
     tokens_used = Column(Integer, default=0)
+
+    # Cost tracking
+    total_cost_usd = Column(String(20), default="0.00")  # Store as string for precision
 
     # Quality gates
     code_review_status = Column(Enum(GateStatus), default=GateStatus.PENDING)
@@ -97,6 +104,7 @@ class Run(Base):
     __table_args__ = (
         Index("ix_runs_status", "status"),
         Index("ix_runs_created_at", "created_at"),
+        Index("ix_runs_organization_id", "organization_id"),
     )
 
 
