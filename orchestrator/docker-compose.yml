@@ -1,0 +1,350 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: orchestrator-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orchestrator
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis (Celery broker and result backend)
+  redis:
+    image: redis:7-alpine
+    container_name: orchestrator-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-api
+    command: uvicorn orchestrator.api.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Orchestrator Worker
+  worker-orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-orch
+    command: python -m orchestrator.workers.entrypoint orchestrator
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Business Analyst Worker
+  worker-ba:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-ba
+    command: python -m orchestrator.workers.entrypoint business_analyst
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Project Manager Worker
+  worker-pm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-pm
+    command: python -m orchestrator.workers.entrypoint project_manager
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # UX Engineer Worker
+  worker-ux:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-ux
+    command: python -m orchestrator.workers.entrypoint ux_engineer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Tech Lead Worker
+  worker-tl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-tl
+    command: python -m orchestrator.workers.entrypoint tech_lead
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Database Engineer Worker
+  worker-db:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-db
+    command: python -m orchestrator.workers.entrypoint database_engineer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Backend Engineer Worker
+  worker-be:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-be
+    command: python -m orchestrator.workers.entrypoint backend_engineer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Frontend Engineer Worker
+  worker-fe:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-fe
+    command: python -m orchestrator.workers.entrypoint frontend_engineer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Code Reviewer Worker
+  worker-cr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-cr
+    command: python -m orchestrator.workers.entrypoint code_reviewer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Security Reviewer Worker
+  worker-sec:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-sec
+    command: python -m orchestrator.workers.entrypoint security_reviewer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Cleanup Agent Worker
+  worker-cleanup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-cleanup
+    command: python -m orchestrator.workers.entrypoint cleanup_agent
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Data Scientist Worker
+  worker-ds:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-ds
+    command: python -m orchestrator.workers.entrypoint data_scientist
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Design Reviewer Worker
+  worker-dr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-worker-dr
+    command: python -m orchestrator.workers.entrypoint design_reviewer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # Celery Flower (monitoring)
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orchestrator-flower
+    command: celery -A orchestrator.core.celery_app flower --port=5555
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
