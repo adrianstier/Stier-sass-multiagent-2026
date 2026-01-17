@@ -52,6 +52,49 @@ This platform enables fully autonomous software development workflows by orchest
                                             └───────────────┘
 ```
 
+## Philosophy: Get Shit Done
+
+This orchestrator embodies a **pragmatic, results-driven approach** to AI-powered development:
+
+### Principles
+
+1. **Ship First, Perfect Later**
+   - Working code beats perfect plans
+   - Iterate rapidly, validate continuously
+   - 80% solution now > 100% solution never
+
+2. **Minimal Viable Process**
+   - Only the steps that add value
+   - No ceremony for ceremony's sake
+   - Agents do real work, not busywork
+
+3. **Fail Fast, Recover Faster**
+   - Dead Letter Queue catches failures
+   - Checkpoints enable recovery
+   - Escalation gets humans involved only when needed
+
+4. **Parallel Everything**
+   - Backend and Frontend run concurrently
+   - Multiple agents work simultaneously
+   - Don't serialize what can parallelize
+
+5. **Quality Gates, Not Quality Theater**
+   - Code review catches real issues
+   - Security review blocks actual vulnerabilities
+   - Skip the rubber stamps
+
+### The Anti-Patterns We Avoid
+
+| Anti-Pattern | Our Approach |
+|--------------|--------------|
+| Endless planning meetings | Orchestrator creates plan, starts executing |
+| Waterfall handoffs | Agents collaborate via channels in real-time |
+| Manual status updates | Event log tracks everything automatically |
+| Approval bottlenecks | Tiered escalation with timeout auto-decisions |
+| Scope creep | Task DSL locks in deliverables upfront |
+
+---
+
 ## Key Features
 
 ### Core Orchestration
