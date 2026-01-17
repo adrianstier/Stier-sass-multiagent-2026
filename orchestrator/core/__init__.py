@@ -28,6 +28,23 @@ from .escalation import (
     request_budget_override,
     request_security_review,
 )
+from .project_analyzer import (
+    ProjectAnalyzer,
+    ProjectState,
+    ProjectType,
+    CodeQualityMetrics,
+    TechnicalDebtItem,
+    SecurityIssue,
+    analyze_project,
+    get_project_analyzer,
+)
+from .project_modes import (
+    ProjectModeHandler,
+    WorkflowConfig,
+    AgentConfig,
+    get_project_mode_handler,
+    get_workflow_config,
+)
 
 __all__ = [
     # Models
@@ -89,4 +106,19 @@ __all__ = [
     "request_gate_approval",
     "request_budget_override",
     "request_security_review",
+    # Project Analysis
+    "ProjectAnalyzer",
+    "ProjectState",
+    "ProjectType",
+    "CodeQualityMetrics",
+    "TechnicalDebtItem",
+    "SecurityIssue",
+    "analyze_project",
+    "get_project_analyzer",
+    # Project Modes
+    "ProjectModeHandler",
+    "WorkflowConfig",
+    "AgentConfig",
+    "get_project_mode_handler",
+    "get_workflow_config",
 ]

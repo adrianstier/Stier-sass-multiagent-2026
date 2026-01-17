@@ -379,6 +379,165 @@ Because AI agents, like Ralph, are enthusiastic helpers who genuinely believe th
 | **Semantic Validation** | LLM-based artifact quality validation |
 | **Expanded Observability** | Histograms, gauges, Prometheus export |
 | **Human-in-the-Loop Escalation** | Tiered escalation with Slack/email notifications |
+| **Project Analysis** | Assess existing codebases before starting work |
+| **Project Modes** | Adaptive workflows for greenfield vs existing projects |
+
+---
+
+## Project Modes: Greenfield vs Existing Projects
+
+The orchestrator intelligently adapts its workflow based on the type of project—whether you're building from scratch or working within an existing codebase.
+
+### Project Types
+
+| Type | Description | Workflow Adaptation |
+|------|-------------|---------------------|
+| `GREENFIELD` | New project from scratch | Full planning cycle, all agents engaged |
+| `EXISTING_ACTIVE` | Active codebase with recent commits | Code analysis first, match existing patterns |
+| `LEGACY_MAINTENANCE` | Older codebase, maintenance mode | Backwards compatibility required, minimal changes |
+| `FEATURE_BRANCH` | Adding feature to existing project | Scope to specific area, integration focus |
+| `BUG_FIX` | Fix specific issue | Minimal changes, root cause analysis |
+| `REFACTOR` | Improve existing code | Preserve behavior, incremental changes |
+
+### Automatic Project Analysis
+
+Before any work begins, the `ProjectAnalyzer` assesses the current state:
+
+```python
+from orchestrator.core import get_project_analyzer
+
+analyzer = get_project_analyzer()
+project_state = await analyzer.analyze("/path/to/project")
+
+# What you get:
+print(project_state.project_type)      # EXISTING_ACTIVE
+print(project_state.languages)         # ["python", "typescript"]
+print(project_state.frameworks)        # ["fastapi", "react"]
+print(project_state.architecture)      # "monolith" | "microservices" | "modular"
+print(project_state.technical_debt)    # List of debt items
+print(project_state.security_issues)   # Potential vulnerabilities
+```
+
+### Analysis Captures
+
+| Category | What's Detected |
+|----------|-----------------|
+| **Languages** | Python, TypeScript, Go, Rust, Java, etc. |
+| **Frameworks** | FastAPI, Django, React, Vue, Express, etc. |
+| **Architecture** | Monolith, microservices, modular, serverless |
+| **Testing** | Test framework, coverage, test patterns |
+| **CI/CD** | GitHub Actions, Jenkins, CircleCI configs |
+| **Code Quality** | Linting, type hints, documentation coverage |
+| **Dependencies** | Outdated packages, security vulnerabilities |
+| **Technical Debt** | Code smells, complexity hotspots, TODOs |
+
+### Workflow Adaptation
+
+Each project type gets a tailored workflow:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          GREENFIELD PROJECT                                   │
+│                                                                              │
+│   [BA] → [PM] → [UX] → [Tech Lead] → [DB] → [Backend] → [Frontend]         │
+│                                              ↓           ↓                   │
+│                                         [Code Review] → [Security Review]    │
+│                                                              ↓               │
+│   Full planning cycle, all agents, complete architecture                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         EXISTING PROJECT                                      │
+│                                                                              │
+│   [Project Analyzer] → [Tech Lead] → [Relevant Engineers Only]              │
+│          ↓                                    ↓                              │
+│   Detect patterns,           [Code Review] → [Security Review]               │
+│   match style,                                    ↓                          │
+│   identify scope             Backwards-compatible, minimal changes           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            BUG FIX                                            │
+│                                                                              │
+│   [Project Analyzer] → [Relevant Engineer] → [Code Review]                   │
+│          ↓                     ↓                   ↓                         │
+│   Root cause          Minimal fix only      Verify no regressions            │
+│   analysis                                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Agent Context Injection
+
+Each agent receives project-specific context:
+
+```python
+# Backend Engineer working on EXISTING_ACTIVE project gets:
+{
+    "project_type": "EXISTING_ACTIVE",
+    "existing_patterns": {
+        "orm": "SQLAlchemy with async sessions",
+        "api_style": "REST with Pydantic models",
+        "error_handling": "Custom HTTPException subclasses",
+        "testing": "pytest with fixtures in conftest.py"
+    },
+    "code_style": {
+        "formatter": "black",
+        "linter": "ruff",
+        "type_hints": "required",
+        "docstring_style": "Google"
+    },
+    "constraints": [
+        "Must maintain backwards compatibility",
+        "Follow existing naming conventions",
+        "Add tests for any new functionality"
+    ]
+}
+```
+
+### Using Project Modes
+
+```python
+from orchestrator.core import (
+    get_project_analyzer,
+    get_project_mode_handler,
+    get_workflow_config,
+)
+
+# 1. Analyze the project
+analyzer = get_project_analyzer()
+project_state = await analyzer.analyze("/path/to/existing/project")
+
+# 2. Get appropriate workflow configuration
+workflow_config = get_workflow_config(project_state.project_type)
+
+# 3. Or explicitly set the mode
+mode_handler = get_project_mode_handler()
+workflow = await mode_handler.create_adaptive_workflow(
+    goal="Add user authentication",
+    project_state=project_state,
+    db=db
+)
+
+# 4. The workflow automatically:
+#    - Skips unnecessary planning phases for bug fixes
+#    - Requires backwards compatibility for legacy projects
+#    - Matches existing code patterns and style
+#    - Adjusts quality gate strictness
+```
+
+### CLI Support
+
+```bash
+# Analyze project before starting work
+orchestrator analyze /path/to/project
+
+# Start with explicit mode
+orchestrator run "Add OAuth support" --mode existing_active --project /path/to/project
+
+# Auto-detect mode from project
+orchestrator run "Fix login bug" --project /path/to/project
+# → Automatically detects EXISTING_ACTIVE or BUG_FIX based on goal
+```
 
 ## Quick Start
 
@@ -488,6 +647,8 @@ curl http://localhost:8000/runs/<run_id>/artifacts
 │   │   ├── supervision.py       # Hierarchical supervision
 │   │   ├── cost_predictor.py    # Cost prediction
 │   │   ├── observability.py     # Metrics and monitoring
+│   │   ├── project_analyzer.py  # Existing codebase analysis
+│   │   ├── project_modes.py     # Adaptive workflow configuration
 │   │   └── ...                  # Other core modules
 │   ├── tools/                    # Tool registry and execution
 │   ├── tests/                    # Test suite
