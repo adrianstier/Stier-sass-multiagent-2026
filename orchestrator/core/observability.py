@@ -663,8 +663,9 @@ class DashboardDataProvider:
         return "\n".join(lines)
 
 
-# Global dashboard data provider instance
+# Global instances
 _dashboard_provider: Optional[DashboardDataProvider] = None
+_metrics_collector: Optional[MetricsCollector] = None
 
 
 def get_dashboard_provider() -> DashboardDataProvider:
@@ -673,3 +674,11 @@ def get_dashboard_provider() -> DashboardDataProvider:
     if _dashboard_provider is None:
         _dashboard_provider = DashboardDataProvider()
     return _dashboard_provider
+
+
+def get_metrics_collector() -> MetricsCollector:
+    """Get the global metrics collector instance."""
+    global _metrics_collector
+    if _metrics_collector is None:
+        _metrics_collector = MetricsCollector()
+    return _metrics_collector

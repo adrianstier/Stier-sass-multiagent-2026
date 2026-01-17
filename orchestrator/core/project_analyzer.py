@@ -30,7 +30,8 @@ from sqlalchemy import Column, DateTime, String, Text, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Session
 
-from orchestrator.core.models import Base, Event, get_db
+from orchestrator.core.models import Base, Event
+from orchestrator.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,18 @@ class TechnicalDebtItem:
     location: Optional[str] = None
     suggested_fix: Optional[str] = None
     estimated_effort: Optional[str] = None  # "hours", "days", "weeks"
+
+
+@dataclass
+class SecurityIssue:
+    """Identified security vulnerability or concern."""
+    severity: str  # "low", "medium", "high", "critical"
+    category: str  # "dependency", "code", "configuration", "secrets", "permissions"
+    description: str
+    location: Optional[str] = None
+    cve_id: Optional[str] = None
+    affected_component: Optional[str] = None
+    remediation: Optional[str] = None
 
 
 @dataclass

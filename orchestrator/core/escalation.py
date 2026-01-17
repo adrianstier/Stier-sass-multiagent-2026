@@ -23,7 +23,8 @@ from sqlalchemy import Column, DateTime, Enum as SQLEnum, ForeignKey, Integer, S
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Session
 
-from orchestrator.core.models import Base, Event, Run, Task, get_db
+from orchestrator.core.models import Base, Event, Run, Task
+from orchestrator.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
