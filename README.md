@@ -382,6 +382,68 @@ Because AI agents, like Ralph, are enthusiastic helpers who genuinely believe th
 | **Project Analysis** | Assess existing codebases before starting work |
 | **Project Modes** | Adaptive workflows for greenfield vs existing projects |
 
+### Agent Tools
+
+The orchestrator provides comprehensive tools that enable agents to work on real repositories:
+
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **Filesystem** | `read_file`, `write_file`, `list_directory`, `search_files`, `copy_file`, `move_file`, `create_directory`, `get_file_info` | Sandboxed file operations with path validation and size limits |
+| **Git** | `git_status`, `git_diff`, `git_log`, `git_add`, `git_commit`, `git_branch`, `git_checkout`, `git_merge`, `git_stash`, `git_fetch`, `git_pull`, `git_push`, `git_show`, `git_blame` | Full git workflow with protected branch enforcement |
+| **Execution** | `run_command`, `run_tests`, `run_linter`, `run_build`, `run_type_check`, `install_dependencies` | Sandboxed command execution with allowlists and auto-detection |
+| **Code Analysis** | `extract_symbols`, `find_references`, `find_definition`, `search_code`, `get_symbol_outline`, `get_file_dependencies`, `get_project_structure` | Multi-language AST parsing and semantic analysis |
+
+#### Tool Security Model
+
+All tools operate within a comprehensive security sandbox:
+
+```python
+# Filesystem sandboxing
+SandboxConfig(
+    allowed_paths=["/project/src", "/project/tests"],
+    denied_patterns=["*.env", "*.pem", "*secret*", "node_modules/"],
+    max_file_size_mb=10.0,
+    allow_delete=False  # Configurable per role
+)
+
+# Git safety controls
+GitConfig(
+    protected_branches=["main", "master", "production"],
+    allowed_operations=[GitOperationType.READ, GitOperationType.WRITE],
+    max_commit_files=50  # Prevent mega-commits
+)
+
+# Execution sandboxing
+ExecutionConfig(
+    mode=ExecutionMode.STANDARD,  # RESTRICTED | STANDARD | ELEVATED
+    timeout_seconds=300,
+    max_output_size=1_000_000
+)
+```
+
+#### Role-Based Tool Access
+
+Each agent role has carefully scoped tool permissions:
+
+| Role | Filesystem | Git | Execution | Code Analysis |
+|------|------------|-----|-----------|---------------|
+| **Backend/Frontend Engineer** | Full | Full (except push) | Full | Full |
+| **Code Reviewer** | Read-only | Read-only | Tests + Lint | Full |
+| **Security Reviewer** | Read-only | Read-only | Security scans | Full |
+| **Tech Lead** | Full | Full | Full | Full |
+| **Business Analyst** | Read-only | Read-only | None | Structure only |
+
+#### Auto-Detection
+
+The execution tools automatically detect project tooling:
+
+```
+Detected test framework: pytest (found pytest.ini)
+Detected linter: ruff (found ruff.toml)
+Detected package manager: poetry (found pyproject.toml)
+Detected type checker: mypy (found mypy.ini)
+```
+
 ---
 
 ## Project Modes: Greenfield vs Existing Projects
