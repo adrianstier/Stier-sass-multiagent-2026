@@ -101,6 +101,8 @@ This orchestrator embodies a **pragmatic, results-driven approach** to AI-powere
 
 The **Ralph Wiggum Loop** is our iterative validation pattern that ensures agents don't just *think* they're done—they actually *are* done. Every agent output goes through a self-correction cycle until it meets objective criteria.
 
+> **Credit**: Inspired by [Geoffrey Huntley's Ralph Wiggum Technique](https://github.com/ghuntley/how-to-ralph-wiggum) - "the AI development methodology that reduces software costs to less than a fast food worker's wage."
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           THE RALPH WIGGUM LOOP                              │
@@ -130,9 +132,79 @@ The **Ralph Wiggum Loop** is our iterative validation pattern that ensures agent
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### How It Works
+### The Critical Difference: Fresh Context vs Bloated Context
 
-The loop is embedded at every critical junction in the orchestration:
+Most people get Ralph Wiggum wrong. The key insight from the community:
+
+> *"The original bash loop starts a fresh context window each iteration. That's a fundamental difference... as tasks pile up, your context gets more bloated, more hallucinations."*
+
+**Our orchestrator solves this by design:**
+
+| Problem | Single-Context Loop | Our Multi-Agent Approach |
+|---------|--------------------|-----------------------|
+| Context bloat | Everything in one window | Each agent gets fresh context per task |
+| Hallucination accumulation | Errors compound | Checkpoints isolate failures |
+| No compaction control | Manual intervention | Automatic context management |
+| Ambiguous decisions | Agent guesses | `plan.md` + Task DSL locks deliverables |
+
+### The Five Pillars of Running Ralph Right
+
+Based on real-world experience from the AI coding community:
+
+#### 1. Safety: Sandbox Everything
+```
+Don't let agents nuke your system. Our approach:
+├── Tool executor with role-based allowlists
+├── No agent performs privileged actions directly
+├── Git worktrees for isolated execution
+└── Full audit trail of every tool usage
+```
+
+#### 2. Efficiency: Plan Before You Loop
+```
+You don't want Ralph making ambiguous decisions:
+├── plan.md     → Clear task breakdown upfront
+├── activity.md → Running log of what's happening
+├── Task DSL    → Dependencies and expected artifacts defined
+└── USE GIT     → Every iteration is recoverable
+```
+
+#### 3. Cost: Set Max Iterations
+```python
+# Don't let it run forever
+RALPH_CONFIG = {
+    "max_iterations": 10,        # Start here, adjust based on task
+    "cost_ceiling": 5.00,        # Dollar limit per task
+    "checkpoint_interval": 3,    # Save state every N iterations
+}
+```
+
+#### 4. Validation: Objective Completion Criteria
+```python
+# Don't trust "I think I'm done" - verify objectively
+async def verify_completion(task, output):
+    checks = [
+        run_test_suite(),           # Tests pass?
+        lint_check(),               # Code quality?
+        type_check(),               # Types valid?
+        security_scan(),            # No vulnerabilities?
+        matches_requirements(),     # Meets spec?
+    ]
+    return all(await asyncio.gather(*checks))
+```
+
+#### 5. Feedback: Let Agents See Their Work
+```
+Give agents tools to verify their own output:
+├── Playwright/browser → Screenshot and verify UI
+├── Test runners       → Execute and see results
+├── Console logs       → Debug output visible
+└── Semantic validator → LLM checks artifact quality
+```
+
+### How It Works in Our System
+
+The loop is embedded at every critical junction:
 
 | Stage | Ralph Loop Application | Module |
 |-------|----------------------|--------|
@@ -146,39 +218,61 @@ The loop is embedded at every critical junction in the orchestration:
 
 Every Ralph Loop terminates via one of three paths:
 
-1. **PASS** - Output meets all validation criteria
+1. **PASS** - Output meets all validation criteria (objective, not vibes)
 2. **MAX_RETRIES** - Hit iteration limit, escalate to supervisor/human
 3. **BUDGET_EXCEEDED** - Cost threshold reached, checkpoint and pause
 
-### Implementation in Each Agent
+### Implementation Pattern
 
 ```python
-# Every agent's execute() method includes the Ralph Loop
+# The orchestrator's Ralph Loop implementation
 class BaseAgent:
-    async def execute_with_ralph_loop(self, task, max_iterations=5):
+    async def execute_with_ralph_loop(self, task, max_iterations=10):
         for i in range(max_iterations):
-            # 1. Generate output
-            output = await self.generate(task)
+            # Fresh context management - avoid bloat
+            context = await self.context_manager.prepare_context(task)
 
-            # 2. Self-validate ("Am I actually helping?")
-            validation = await self.validate_output(output, task)
+            # 1. Generate output
+            output = await self.generate(task, context)
+
+            # 2. OBJECTIVE validation - not "do you think you're done?"
+            validation = await self.verify_completion(output, task)
 
             if validation.passed:
+                await self.checkpoint_manager.save(task, output)
                 return output  # Actually done!
 
-            # 3. Critique and revise
+            # 3. Critique with specific, actionable feedback
             critique = await self.get_critique(output, validation)
-            task = self.incorporate_feedback(task, critique)
 
-            # Log the loop iteration
+            # 4. Log for observability
             self.log_event("ralph_loop_iteration", {
                 "iteration": i + 1,
                 "issues": validation.issues,
-                "action": "revising"
+                "cost_so_far": self.cost_tracker.total,
             })
 
-        # 4. Max retries hit - escalate
+            # 5. Check cost ceiling
+            if self.cost_tracker.total > task.cost_ceiling:
+                await self.checkpoint_manager.save(task, output)
+                raise BudgetExceededError(f"Hit ${task.cost_ceiling} limit")
+
+        # Max retries - escalate, don't just fail
         await self.escalate_to_supervisor(task, output, validation)
+
+    async def verify_completion(self, output, task):
+        """Objective verification - the key to Ralph working right"""
+        results = {
+            "tests_pass": await self.run_tests(output),
+            "lint_clean": await self.lint_check(output),
+            "types_valid": await self.type_check(output),
+            "security_ok": await self.security_scan(output),
+            "meets_spec": await self.semantic_validator.validate(output, task.requirements),
+        }
+        return ValidationResult(
+            passed=all(results.values()),
+            issues=[k for k, v in results.items() if not v]
+        )
 ```
 
 ### Supervision Hierarchy + Ralph Loop
@@ -191,7 +285,7 @@ The hierarchical supervision system applies Ralph Loops at each level:
 │              (Tech Lead, Security Reviewer)                      │
 │                                                                  │
 │   Ralph Loop: Strategic validation, architecture compliance      │
-│   Escalates to: Human (via escalation.py)                       │
+│   Escalates to: Human (via escalation.py with Slack/email)      │
 └─────────────────────────────┬───────────────────────────────────┘
                               │ critique
                               ▼
@@ -223,11 +317,25 @@ metrics.record_ralph_loop(
     agent_role="backend_engineer",
     iterations=3,           # How many times before passing
     total_duration=45.2,    # Seconds spent in loop
+    cost_incurred=0.42,     # Dollars spent
     escalated=False,        # Did it need supervisor help?
     issues_found=["missing error handling", "no input validation"],
-    issues_fixed=["missing error handling", "no input validation"]
+    issues_fixed=["missing error handling", "no input validation"],
+    exit_condition="PASS"   # PASS | MAX_RETRIES | BUDGET_EXCEEDED
 )
 ```
+
+### Common Pitfalls (and How We Avoid Them)
+
+| Pitfall | What Goes Wrong | Our Solution |
+|---------|----------------|--------------|
+| **Single context window** | Bloat, hallucinations compound | Fresh context per task, checkpoints |
+| **No objective validation** | "I think I'm done" ≠ done | Test suites, lint, semantic validation |
+| **Unlimited iterations** | Runaway costs | Max iterations + cost ceiling |
+| **No plan upfront** | Ambiguous decisions | Task DSL + plan.md |
+| **Can't verify own work** | Blind to mistakes | Playwright, test runners, logs |
+| **Mega PRs** | Unreviewable changes | Atomic tasks, incremental commits |
+| **Early mistakes compound** | Wrong foundation | Quality gates block bad code |
 
 ### Why "Ralph Wiggum"?
 
@@ -237,6 +345,7 @@ Because AI agents, like Ralph, are enthusiastic helpers who genuinely believe th
 - **Iteration beats perfection** - Multiple passes produce better results
 - **Escalation is okay** - Some problems need a smarter brain
 - **No false positives** - "Done" means actually done
+- **Fresh context matters** - Don't let bloat kill your loop
 
 ---
 
