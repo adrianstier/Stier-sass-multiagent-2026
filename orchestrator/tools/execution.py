@@ -102,6 +102,14 @@ class ExecutionTools:
         "cargo-test": None,
         "go-test": None,
 
+        # BDD/Cucumber test frameworks
+        "cucumber": None,
+        "cucumber-js": None,
+        "behave": None,  # Python BDD
+        "lettuce": None,  # Python BDD
+        "radish": None,  # Python BDD
+        "gauge": None,  # Thoughtworks Gauge
+
         # Linters & formatters
         "eslint": None,
         "prettier": None,
@@ -399,13 +407,60 @@ class ExecutionTools:
         """Auto-detect test framework from project files."""
         cwd = self.config.working_dir
 
-        # Python
+        # Check for BDD/Cucumber frameworks first (they may coexist with unit test frameworks)
+        # Python BDD - Behave
+        if os.path.exists(os.path.join(cwd, "behave.ini")) or \
+           os.path.exists(os.path.join(cwd, "features")) and \
+           any(f.endswith(".feature") for f in os.listdir(os.path.join(cwd, "features"))
+               if os.path.isfile(os.path.join(cwd, "features", f))):
+            # Check if behave is installed vs other Python BDD
+            if os.path.exists(os.path.join(cwd, ".behaverc")) or \
+               os.path.exists(os.path.join(cwd, "behave.ini")):
+                return "behave"
+
+        # JavaScript/TypeScript - check for Cucumber-js
+        package_json = os.path.join(cwd, "package.json")
+        if os.path.exists(package_json):
+            try:
+                with open(package_json) as f:
+                    pkg = json.load(f)
+                    deps = {**pkg.get("devDependencies", {}), **pkg.get("dependencies", {})}
+
+                    # Cucumber-js detection
+                    if "@cucumber/cucumber" in deps or "cucumber" in deps:
+                        return "cucumber-js"
+            except Exception:
+                pass
+
+        # Ruby Cucumber
+        if os.path.exists(os.path.join(cwd, "cucumber.yml")) or \
+           os.path.exists(os.path.join(cwd, "Gemfile")):
+            gemfile_path = os.path.join(cwd, "Gemfile")
+            if os.path.exists(gemfile_path):
+                try:
+                    with open(gemfile_path) as f:
+                        content = f.read()
+                        if "cucumber" in content.lower():
+                            return "cucumber"
+                except Exception:
+                    pass
+
+        # Gauge (Thoughtworks)
+        if os.path.exists(os.path.join(cwd, "manifest.json")):
+            try:
+                with open(os.path.join(cwd, "manifest.json")) as f:
+                    manifest = json.load(f)
+                    if "Language" in manifest:  # Gauge manifest format
+                        return "gauge"
+            except Exception:
+                pass
+
+        # Python unit test frameworks
         if os.path.exists(os.path.join(cwd, "pytest.ini")) or \
            os.path.exists(os.path.join(cwd, "pyproject.toml")):
             return "pytest"
 
-        # JavaScript/TypeScript
-        package_json = os.path.join(cwd, "package.json")
+        # JavaScript/TypeScript unit test frameworks
         if os.path.exists(package_json):
             try:
                 with open(package_json) as f:
@@ -442,12 +497,18 @@ class ExecutionTools:
     ) -> Optional[str]:
         """Build test command for a framework."""
         commands = {
+            # Unit test frameworks
             "pytest": self._build_pytest_command,
             "jest": self._build_jest_command,
             "vitest": self._build_vitest_command,
             "mocha": self._build_mocha_command,
             "cargo": self._build_cargo_test_command,
             "go": self._build_go_test_command,
+            # BDD/Cucumber frameworks
+            "cucumber": self._build_cucumber_command,
+            "cucumber-js": self._build_cucumber_js_command,
+            "behave": self._build_behave_command,
+            "gauge": self._build_gauge_command,
         }
 
         builder = commands.get(framework)
@@ -519,6 +580,58 @@ class ExecutionTools:
         cmd.append(path or "./...")
         return " ".join(cmd)
 
+    def _build_cucumber_command(self, path, verbose, coverage, filter_pattern):
+        """Build Ruby Cucumber command."""
+        cmd = ["bundle", "exec", "cucumber"]
+        if verbose:
+            cmd.append("--verbose")
+        if filter_pattern:
+            cmd.extend(["--tags", filter_pattern])
+        if path:
+            cmd.append(path)
+        else:
+            cmd.append("features/")
+        return " ".join(cmd)
+
+    def _build_cucumber_js_command(self, path, verbose, coverage, filter_pattern):
+        """Build Cucumber-js command."""
+        cmd = ["npx", "cucumber-js"]
+        if filter_pattern:
+            cmd.extend(["--tags", filter_pattern])
+        if path:
+            cmd.append(path)
+        else:
+            cmd.append("features/")
+        # Add format for better output
+        cmd.extend(["--format", "progress-bar"])
+        return " ".join(cmd)
+
+    def _build_behave_command(self, path, verbose, coverage, filter_pattern):
+        """Build Python Behave command."""
+        cmd = ["behave"]
+        if verbose:
+            cmd.append("--verbose")
+        if filter_pattern:
+            cmd.extend(["--tags", filter_pattern])
+        if path:
+            cmd.append(path)
+        # Add summary format
+        cmd.extend(["--format", "progress"])
+        return " ".join(cmd)
+
+    def _build_gauge_command(self, path, verbose, coverage, filter_pattern):
+        """Build Gauge command."""
+        cmd = ["gauge", "run"]
+        if verbose:
+            cmd.append("--verbose")
+        if filter_pattern:
+            cmd.extend(["--tags", filter_pattern])
+        if path:
+            cmd.append(path)
+        else:
+            cmd.append("specs/")
+        return " ".join(cmd)
+
     def _parse_test_output(self, framework: str, stdout: str, stderr: str) -> Dict[str, Any]:
         """Parse test output to extract summary."""
         output = stdout + stderr
@@ -557,6 +670,89 @@ class ExecutionTools:
                 "passed": passed,
                 "failed": failed,
                 "total": passed + failed,
+            }
+
+        elif framework in ["cucumber", "cucumber-js"]:
+            # Cucumber output: "X scenarios (Y passed, Z failed)"
+            scenarios_match = re.search(r"(\d+) scenarios?", output)
+            scenarios = int(scenarios_match.group(1)) if scenarios_match else 0
+
+            passed_match = re.search(r"(\d+) passed", output)
+            passed = int(passed_match.group(1)) if passed_match else 0
+
+            failed_match = re.search(r"(\d+) failed", output)
+            failed = int(failed_match.group(1)) if failed_match else 0
+
+            pending_match = re.search(r"(\d+) pending", output)
+            pending = int(pending_match.group(1)) if pending_match else 0
+
+            skipped_match = re.search(r"(\d+) skipped", output)
+            skipped = int(skipped_match.group(1)) if skipped_match else 0
+
+            # Also capture step counts
+            steps_match = re.search(r"(\d+) steps?", output)
+            steps = int(steps_match.group(1)) if steps_match else 0
+
+            return {
+                "scenarios": scenarios,
+                "steps": steps,
+                "passed": passed,
+                "failed": failed,
+                "pending": pending,
+                "skipped": skipped,
+                "total": scenarios,
+            }
+
+        elif framework == "behave":
+            # Behave output: "X features passed, Y failed, Z skipped"
+            # "X scenarios passed, Y failed, Z skipped"
+            # "X steps passed, Y failed, Z skipped, W undefined"
+            features_match = re.search(r"(\d+) features? passed", output)
+            features_passed = int(features_match.group(1)) if features_match else 0
+
+            scenarios_match = re.search(r"(\d+) scenarios? passed", output)
+            scenarios_passed = int(scenarios_match.group(1)) if scenarios_match else 0
+
+            scenarios_failed_match = re.search(r"(\d+) scenarios? failed", output)
+            scenarios_failed = int(scenarios_failed_match.group(1)) if scenarios_failed_match else 0
+
+            steps_passed_match = re.search(r"(\d+) steps? passed", output)
+            steps_passed = int(steps_passed_match.group(1)) if steps_passed_match else 0
+
+            steps_failed_match = re.search(r"(\d+) steps? failed", output)
+            steps_failed = int(steps_failed_match.group(1)) if steps_failed_match else 0
+
+            return {
+                "features_passed": features_passed,
+                "scenarios_passed": scenarios_passed,
+                "scenarios_failed": scenarios_failed,
+                "steps_passed": steps_passed,
+                "steps_failed": steps_failed,
+                "passed": scenarios_passed,
+                "failed": scenarios_failed,
+                "total": scenarios_passed + scenarios_failed,
+            }
+
+        elif framework == "gauge":
+            # Gauge output parsing
+            specs_match = re.search(r"Specifications:\s+(\d+)", output)
+            specs = int(specs_match.group(1)) if specs_match else 0
+
+            scenarios_match = re.search(r"Scenarios:\s+(\d+)", output)
+            scenarios = int(scenarios_match.group(1)) if scenarios_match else 0
+
+            passed_match = re.search(r"Passed:\s+(\d+)", output)
+            passed = int(passed_match.group(1)) if passed_match else 0
+
+            failed_match = re.search(r"Failed:\s+(\d+)", output)
+            failed = int(failed_match.group(1)) if failed_match else 0
+
+            return {
+                "specifications": specs,
+                "scenarios": scenarios,
+                "passed": passed,
+                "failed": failed,
+                "total": specs,
             }
 
         return {"raw": True}

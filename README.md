@@ -390,7 +390,7 @@ The orchestrator provides comprehensive tools that enable agents to work on real
 |----------|-------|-------------|
 | **Filesystem** | `read_file`, `write_file`, `list_directory`, `search_files`, `copy_file`, `move_file`, `create_directory`, `get_file_info` | Sandboxed file operations with path validation and size limits |
 | **Git** | `git_status`, `git_diff`, `git_log`, `git_add`, `git_commit`, `git_branch`, `git_checkout`, `git_merge`, `git_stash`, `git_fetch`, `git_pull`, `git_push`, `git_show`, `git_blame` | Full git workflow with protected branch enforcement |
-| **Execution** | `run_command`, `run_tests`, `run_linter`, `run_build`, `run_type_check`, `install_dependencies` | Sandboxed command execution with allowlists and auto-detection |
+| **Execution** | `run_command`, `run_tests`, `run_linter`, `run_build`, `run_type_check`, `install_dependencies` | Sandboxed command execution with allowlists and auto-detection (supports pytest, jest, vitest, mocha, Cucumber, Behave, Gauge) |
 | **Code Analysis** | `extract_symbols`, `find_references`, `find_definition`, `search_code`, `get_symbol_outline`, `get_file_dependencies`, `get_project_structure` | Multi-language AST parsing and semantic analysis |
 
 #### Tool Security Model
@@ -443,6 +443,10 @@ Detected linter: ruff (found ruff.toml)
 Detected package manager: poetry (found pyproject.toml)
 Detected type checker: mypy (found mypy.ini)
 ```
+
+**Supported Test Frameworks:**
+- **Unit Testing**: pytest, jest, vitest, mocha, cargo test, go test
+- **BDD/Cucumber**: Cucumber (Ruby), Cucumber-js, Behave (Python), Gauge
 
 ---
 
