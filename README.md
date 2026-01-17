@@ -95,6 +95,151 @@ This orchestrator embodies a **pragmatic, results-driven approach** to AI-powere
 
 ---
 
+## The Ralph Wiggum Loop
+
+> *"I'm helping!"* - Ralph Wiggum
+
+The **Ralph Wiggum Loop** is our iterative validation pattern that ensures agents don't just *think* they're done—they actually *are* done. Every agent output goes through a self-correction cycle until it meets objective criteria.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           THE RALPH WIGGUM LOOP                              │
+│                                                                              │
+│    ┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────┐      │
+│    │  Agent   │ ───► │ Validate │ ───► │  Pass?   │ ───► │   Done   │      │
+│    │  Output  │      │  Output  │      │          │      │          │      │
+│    └──────────┘      └──────────┘      └────┬─────┘      └──────────┘      │
+│                                             │ NO                            │
+│                                             ▼                               │
+│                                      ┌──────────┐                           │
+│                                      │ Critique │                           │
+│                                      │ & Revise │ ◄─────────┐               │
+│                                      └────┬─────┘           │               │
+│                                           │                 │               │
+│                                           ▼                 │               │
+│                                      ┌──────────┐           │               │
+│                                      │  Still   │ ── NO ───┘               │
+│                                      │  Wrong?  │                           │
+│                                      └────┬─────┘                           │
+│                                           │ YES (max retries)               │
+│                                           ▼                                 │
+│                                      ┌──────────┐                           │
+│                                      │ Escalate │                           │
+│                                      │ to Human │                           │
+│                                      └──────────┘                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### How It Works
+
+The loop is embedded at every critical junction in the orchestration:
+
+| Stage | Ralph Loop Application | Module |
+|-------|----------------------|--------|
+| **Task Execution** | Agent validates own output before marking complete | `base.py` |
+| **Quality Gates** | Code/Security reviewers loop until issues fixed | `tasks.py` |
+| **Supervision** | Lead agents critique subordinate work | `supervision.py` |
+| **Semantic Check** | LLM validates artifacts meet requirements | `semantic_validator.py` |
+| **Final Review** | Cross-artifact consistency validation | `semantic_validator.py` |
+
+### The Three Exit Conditions
+
+Every Ralph Loop terminates via one of three paths:
+
+1. **PASS** - Output meets all validation criteria
+2. **MAX_RETRIES** - Hit iteration limit, escalate to supervisor/human
+3. **BUDGET_EXCEEDED** - Cost threshold reached, checkpoint and pause
+
+### Implementation in Each Agent
+
+```python
+# Every agent's execute() method includes the Ralph Loop
+class BaseAgent:
+    async def execute_with_ralph_loop(self, task, max_iterations=5):
+        for i in range(max_iterations):
+            # 1. Generate output
+            output = await self.generate(task)
+
+            # 2. Self-validate ("Am I actually helping?")
+            validation = await self.validate_output(output, task)
+
+            if validation.passed:
+                return output  # Actually done!
+
+            # 3. Critique and revise
+            critique = await self.get_critique(output, validation)
+            task = self.incorporate_feedback(task, critique)
+
+            # Log the loop iteration
+            self.log_event("ralph_loop_iteration", {
+                "iteration": i + 1,
+                "issues": validation.issues,
+                "action": "revising"
+            })
+
+        # 4. Max retries hit - escalate
+        await self.escalate_to_supervisor(task, output, validation)
+```
+
+### Supervision Hierarchy + Ralph Loop
+
+The hierarchical supervision system applies Ralph Loops at each level:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        ARCHITECT LEVEL                           │
+│              (Tech Lead, Security Reviewer)                      │
+│                                                                  │
+│   Ralph Loop: Strategic validation, architecture compliance      │
+│   Escalates to: Human (via escalation.py)                       │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │ critique
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         LEAD LEVEL                               │
+│              (Code Reviewer, Project Manager)                    │
+│                                                                  │
+│   Ralph Loop: Quality validation, standards compliance           │
+│   Escalates to: Architect level                                 │
+└─────────────────────────────┬───────────────────────────────────┘
+                              │ critique
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       EXECUTION LEVEL                            │
+│         (Backend, Frontend, Database, UX Engineers)              │
+│                                                                  │
+│   Ralph Loop: Self-validation, unit tests, lint checks           │
+│   Escalates to: Lead level                                      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Ralph Loop Metrics
+
+The observability module tracks loop efficiency:
+
+```python
+# Metrics collected for each Ralph Loop
+metrics.record_ralph_loop(
+    agent_role="backend_engineer",
+    iterations=3,           # How many times before passing
+    total_duration=45.2,    # Seconds spent in loop
+    escalated=False,        # Did it need supervisor help?
+    issues_found=["missing error handling", "no input validation"],
+    issues_fixed=["missing error handling", "no input validation"]
+)
+```
+
+### Why "Ralph Wiggum"?
+
+Because AI agents, like Ralph, are enthusiastic helpers who genuinely believe they're contributing—but without validation, they might be "helping" in ways that don't actually help. The loop ensures that:
+
+- **Confidence ≠ Correctness** - Agents validate, not just generate
+- **Iteration beats perfection** - Multiple passes produce better results
+- **Escalation is okay** - Some problems need a smarter brain
+- **No false positives** - "Done" means actually done
+
+---
+
 ## Key Features
 
 ### Core Orchestration
