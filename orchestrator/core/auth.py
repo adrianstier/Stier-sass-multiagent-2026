@@ -115,7 +115,7 @@ class TokenPayload(BaseModel):
     """JWT token payload."""
     sub: str  # User ID
     org_id: str  # Organization ID
-    role: str
+    role: Optional[str] = None  # Optional for refresh tokens
     exp: datetime
     type: str = "access"
 

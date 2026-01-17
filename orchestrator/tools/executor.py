@@ -40,13 +40,16 @@ class ToolExecutor:
 
         # Check authorization
         if not self.can_execute(tool_name):
+            error_msg = f"Tool '{tool_name}' not allowed for role '{self.role}'"
             logger.warning(
                 f"Role '{self.role}' attempted unauthorized tool '{tool_name}'"
             )
+            # Log the unauthorized attempt
+            self._log_execution(tool_name, kwargs, None, error_msg, 0)
             return ToolResult(
                 success=False,
                 result=None,
-                error=f"Tool '{tool_name}' not allowed for role '{self.role}'",
+                error=error_msg,
             )
 
         # Get tool function

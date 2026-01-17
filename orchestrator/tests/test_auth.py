@@ -140,7 +140,10 @@ class TestTokenExpiration:
         payload = decode_token(token)
 
         assert payload.exp is not None
-        assert payload.exp > datetime.utcnow()
+        # Compare timezone-aware datetime properly
+        now = datetime.utcnow()
+        exp_naive = payload.exp.replace(tzinfo=None) if payload.exp.tzinfo else payload.exp
+        assert exp_naive > now
 
     def test_refresh_token_expires_later(self):
         """Refresh token should expire later than access token."""
