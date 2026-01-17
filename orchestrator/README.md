@@ -77,6 +77,25 @@ This system implements a functional multi-agent workflow using Celery, where an 
 - Dependencies, expected artifacts, validation methods
 - Idempotent tasks with dedupe keys
 
+### 7. Advanced Features (NEW)
+
+The system includes 10 advanced orchestration capabilities:
+
+| Feature | Module | Description |
+|---------|--------|-------------|
+| Dead Letter Queue | `core/dlq.py` | Failed task persistence with replay |
+| Context Management | `core/context_manager.py` | Token estimation and summarization |
+| Dynamic Workflows | `core/workflow_modifier.py` | Runtime DAG modification |
+| Agent Channels | `core/channels.py` | Redis pub/sub messaging |
+| Checkpoints | `core/checkpoint.py` | State persistence and recovery |
+| Cost Prediction | `core/cost_predictor.py` | Historical cost estimation |
+| Supervision | `core/supervision.py` | Hierarchical agent oversight |
+| Semantic Validation | `core/semantic_validator.py` | LLM-based quality checks |
+| Observability | `core/observability.py` | Metrics and Prometheus export |
+| Escalation | `core/escalation.py` | Human-in-the-loop with notifications |
+
+See [Advanced Features Documentation](../docs/advanced-features.md) for detailed usage.
+
 ## Quick Start
 
 ### Prerequisites
@@ -237,7 +256,17 @@ orchestrator/
 │   ├── config.py         # Settings
 │   ├── database.py       # Database session
 │   ├── models.py         # SQLAlchemy models
-│   └── task_dsl.py       # Task DSL definitions
+│   ├── task_dsl.py       # Task DSL definitions
+│   ├── dlq.py            # Dead Letter Queue
+│   ├── context_manager.py # Context window management
+│   ├── workflow_modifier.py # Dynamic workflow modification
+│   ├── channels.py       # Agent collaboration channels
+│   ├── checkpoint.py     # Checkpoint/resume system
+│   ├── cost_predictor.py # Cost prediction
+│   ├── supervision.py    # Hierarchical supervision
+│   ├── semantic_validator.py # Semantic validation
+│   ├── observability.py  # Metrics and monitoring
+│   └── escalation.py     # Human-in-the-loop escalation
 ├── tools/
 │   ├── __init__.py
 │   ├── executor.py       # Tool execution engine
