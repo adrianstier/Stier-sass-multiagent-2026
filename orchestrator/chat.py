@@ -80,6 +80,7 @@ You can delegate to these specialists by calling the delegate_to_agent tool:
 10. **devops** - DevOps Engineer: Docker, CI/CD, deployment, infrastructure
 11. **data_scientist** - Data Scientist: EDA, ML models, feature engineering, data pipelines
 12. **design_reviewer** - Design Reviewer: UI aesthetics, typography, color, motion, distinctiveness
+13. **graphic_designer** - Graphic Designer: Visual beauty assessment, emotional impact, aesthetic feedback
 
 ## How to Work
 1. When a user makes a request, analyze what needs to be done
