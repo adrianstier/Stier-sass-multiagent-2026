@@ -10,13 +10,14 @@ Production-ready with:
 """
 
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Query, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from orchestrator.core.config import settings
@@ -50,6 +51,22 @@ from orchestrator.core.logging import (
 configure_logging()
 logger = get_logger(__name__)
 
+
+# =============================================================================
+# Lifespan Context Manager
+# =============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize and cleanup application resources."""
+    # Startup
+    logger.info("application_starting", version="2.0.0")
+    init_db()
+    logger.info("application_started")
+    yield
+    # Shutdown (cleanup if needed)
+    logger.info("application_shutdown")
+
 # =============================================================================
 # FastAPI App Setup
 # =============================================================================
@@ -60,6 +77,7 @@ app = FastAPI(
     version="2.0.0",
     docs_url="/docs" if settings.log_level == "DEBUG" else None,  # Hide docs in production
     redoc_url="/redoc" if settings.log_level == "DEBUG" else None,
+    lifespan=lifespan,
 )
 
 # =============================================================================
@@ -162,8 +180,9 @@ class RunCreate(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict, description="Additional context")
     budget_tokens: Optional[int] = Field(None, ge=1000, le=10000000, description="Token budget for this run")
 
-    @validator("goal")
-    def goal_not_empty(cls, v):
+    @field_validator("goal")
+    @classmethod
+    def goal_not_empty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Goal cannot be empty or whitespace only")
         return v.strip()
@@ -187,8 +206,7 @@ class RunResponse(BaseModel):
     completed_at: Optional[datetime]
     blocked_reason: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TaskResponse(BaseModel):
@@ -204,8 +222,7 @@ class TaskResponse(BaseModel):
     completed_at: Optional[datetime]
     error_message: Optional[str]
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class EventResponse(BaseModel):
@@ -215,8 +232,7 @@ class EventResponse(BaseModel):
     data: Dict[str, Any]
     timestamp: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ArtifactResponse(BaseModel):
@@ -227,8 +243,7 @@ class ArtifactResponse(BaseModel):
     produced_by: str
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ArtifactDetailResponse(ArtifactResponse):
@@ -282,18 +297,20 @@ class TokenResponse(BaseModel):
 class WebhookCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Webhook name")
     url: str = Field(..., min_length=10, max_length=2048, description="Webhook URL")
-    events: List[str] = Field(..., min_items=1, description="Event types to subscribe to")
+    events: List[str] = Field(..., min_length=1, description="Event types to subscribe to")
     secret: Optional[str] = Field(None, max_length=255, description="Secret for HMAC signature")
     run_id: Optional[str] = Field(None, description="Optional run ID to filter events")
 
-    @validator("url")
-    def validate_url(cls, v):
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
 
-    @validator("events")
-    def validate_events(cls, v):
+    @field_validator("events")
+    @classmethod
+    def validate_events(cls, v: List[str]) -> List[str]:
         valid_events = [e.value for e in WebhookEventType]
         for event in v:
             if event not in valid_events:
@@ -312,8 +329,7 @@ class WebhookResponse(BaseModel):
     last_failure_at: Optional[datetime]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class WebhookDeliveryResponse(BaseModel):
@@ -326,21 +342,12 @@ class WebhookDeliveryResponse(BaseModel):
     delivered_at: Optional[datetime]
     retry_count: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # =============================================================================
-# Startup & Health
+# Health & Root Endpoints
 # =============================================================================
-
-@app.on_event("startup")
-async def startup():
-    """Initialize database and logging on startup."""
-    logger.info("application_starting", version="2.0.0")
-    init_db()
-    logger.info("application_started")
-
 
 @app.get("/")
 async def root():

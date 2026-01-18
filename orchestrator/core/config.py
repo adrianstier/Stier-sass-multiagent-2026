@@ -1,7 +1,7 @@
 """Configuration settings for the orchestration system."""
 
 import secrets
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import os
 
@@ -54,9 +54,7 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "*"  # Comma-separated origins or * for all
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
 settings = Settings()
