@@ -105,6 +105,24 @@ async def handle_request(request: dict) -> dict:
                                 }
                             }
                         }
+                    },
+                    {
+                        "name": "build_prompt",
+                        "description": "Translate natural language into an optimized orchestrator prompt. Takes casual descriptions like 'make buttons look better' and generates structured prompts that leverage the multi-agent framework effectively.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "request": {
+                                    "type": "string",
+                                    "description": "Natural language description of what you want to change (e.g., 'the login page is ugly and slow')"
+                                },
+                                "project_path": {
+                                    "type": "string",
+                                    "description": "Optional path to the project for context"
+                                }
+                            },
+                            "required": ["request"]
+                        }
                     }
                 ]
             }
@@ -250,6 +268,27 @@ async def execute_tool(tool_name: str, args: dict) -> Any:
             filter_pattern=args.get("filter")
         )
         return result
+
+    elif tool_name == "build_prompt":
+        from orchestrator.prompt_builder import analyze_request
+
+        result = analyze_request(
+            args["request"],
+            project_dir=args.get("project_path")
+        )
+
+        return {
+            "original_input": result.original_input,
+            "optimized_prompt": result.optimized_prompt,
+            "workflow": result.workflow_recommendation.value,
+            "agents": result.agents_involved,
+            "agent_sequence": result.agent_sequence,
+            "categories": [c.value for c in result.categories],
+            "intensity": result.intensity,
+            "scope": result.scope,
+            "explanation": result.explanation,
+            "usage_hint": "Copy the 'optimized_prompt' and use it with orchestrate_task"
+        }
 
     else:
         raise ValueError(f"Unknown tool: {tool_name}")
