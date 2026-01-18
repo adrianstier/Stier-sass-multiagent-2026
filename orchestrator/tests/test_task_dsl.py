@@ -3,7 +3,8 @@
 import pytest
 from orchestrator.core.task_dsl import (
     TaskSpec, WorkflowPlan, ValidationMethod,
-    create_standard_workflow, create_minimal_workflow
+    create_standard_workflow, create_minimal_workflow,
+    create_frontend_workflow, create_design_iteration_workflow
 )
 
 
@@ -175,7 +176,8 @@ class TestStandardWorkflows:
         expected_roles = {
             "business_analyst", "project_manager", "ux_engineer",
             "tech_lead", "database_engineer", "backend_engineer",
-            "frontend_engineer", "code_reviewer", "security_reviewer"
+            "frontend_engineer", "code_reviewer", "security_reviewer",
+            "design_reviewer", "graphic_designer"  # Added design review agents
         }
         assert roles == expected_roles
 
@@ -209,3 +211,51 @@ class TestStandardWorkflows:
         roles = {t.assigned_role for t in plan.tasks}
         assert "business_analyst" in roles
         assert "code_reviewer" in roles
+
+    def test_frontend_workflow_structure(self):
+        """Test the frontend workflow includes design reviews."""
+        plan = create_frontend_workflow()
+
+        roles = {t.assigned_role for t in plan.tasks}
+        assert "ux_engineer" in roles
+        assert "frontend_engineer" in roles
+        assert "design_reviewer" in roles
+        assert "graphic_designer" in roles
+        assert "code_reviewer" in roles
+
+    def test_frontend_workflow_design_gate(self):
+        """Test the frontend workflow has visual review as a quality gate."""
+        plan = create_frontend_workflow()
+
+        final_review = plan.get_task_by_type("final_visual_review")
+        assert final_review is not None
+        assert final_review.is_gate is True
+        assert final_review.assigned_role == "graphic_designer"
+
+    def test_frontend_workflow_parallel_reviews(self):
+        """Test that design_review and visual_review run in parallel."""
+        plan = create_frontend_workflow()
+
+        design_review = plan.get_task_by_type("design_review")
+        visual_review = plan.get_task_by_type("visual_review")
+
+        # Both should depend only on frontend_development
+        assert design_review.dependencies == ["frontend_development"]
+        assert visual_review.dependencies == ["frontend_development"]
+
+        # Both should have same priority (run in parallel)
+        assert design_review.priority == visual_review.priority
+
+    def test_design_iteration_workflow(self):
+        """Test the design iteration workflow for improving existing frontends."""
+        plan = create_design_iteration_workflow()
+
+        assert len(plan.tasks) == 4
+        roles = {t.assigned_role for t in plan.tasks}
+        assert "graphic_designer" in roles
+        assert "design_reviewer" in roles
+        assert "frontend_engineer" in roles
+
+        # Final beauty check should be a gate
+        final_check = plan.get_task_by_type("final_beauty_check")
+        assert final_check.is_gate is True

@@ -225,12 +225,34 @@ def create_standard_workflow() -> WorkflowPlan:
         priority=50,
     ))
 
-    # Phase 7: Code Review (Quality Gate)
+    # Phase 7a: Design Pattern Review
+    plan.add_task(TaskSpec(
+        task_type="design_review",
+        assigned_role="design_reviewer",
+        description="Review frontend implementation for design patterns, typography, color, motion, and distinctiveness",
+        dependencies=["frontend_development"],
+        expected_artifacts=["design_review_report"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=45,
+    ))
+
+    # Phase 7b: Visual Beauty Assessment
+    plan.add_task(TaskSpec(
+        task_type="visual_review",
+        assigned_role="graphic_designer",
+        description="Evaluate visual beauty, emotional impact, and aesthetic quality of the frontend implementation",
+        dependencies=["frontend_development"],
+        expected_artifacts=["visual_review_report", "beauty_score"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=45,
+    ))
+
+    # Phase 8: Code Review (Quality Gate)
     plan.add_task(TaskSpec(
         task_type="code_review",
         assigned_role="code_reviewer",
         description="Review all code for quality, standards compliance, and best practices",
-        dependencies=["backend_development", "frontend_development"],
+        dependencies=["backend_development", "frontend_development", "design_review", "visual_review"],
         expected_artifacts=["code_review_report"],
         validation_method=ValidationMethod.GATE_APPROVAL,
         is_gate=True,
@@ -238,7 +260,7 @@ def create_standard_workflow() -> WorkflowPlan:
         priority=40,
     ))
 
-    # Phase 8: Security Review (Quality Gate)
+    # Phase 9: Security Review (Quality Gate)
     plan.add_task(TaskSpec(
         task_type="security_review",
         assigned_role="security_reviewer",
@@ -282,6 +304,157 @@ def create_minimal_workflow() -> WorkflowPlan:
         expected_artifacts=["review_report"],
         is_gate=True,
         priority=30,
+    ))
+
+    return plan
+
+
+def create_frontend_workflow() -> WorkflowPlan:
+    """Create a frontend-focused workflow with design quality emphasis.
+
+    This workflow prioritizes visual excellence with multiple design review stages:
+    1. UX/wireframe design
+    2. Frontend implementation
+    3. Design pattern review (technical design patterns)
+    4. Visual beauty assessment (aesthetic quality)
+    5. Iteration based on feedback
+
+    The graphic_designer and design_reviewer run in parallel after frontend
+    development, with their feedback feeding into potential iterations.
+    """
+    plan = WorkflowPlan()
+
+    # Phase 1: UX Design
+    plan.add_task(TaskSpec(
+        task_type="ux_design",
+        assigned_role="ux_engineer",
+        description="Create user flows, wireframes, interaction patterns, and design specifications",
+        expected_artifacts=["user_flows", "wireframes", "design_spec", "accessibility_requirements"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=100,
+    ))
+
+    # Phase 2: Frontend Implementation
+    plan.add_task(TaskSpec(
+        task_type="frontend_development",
+        assigned_role="frontend_engineer",
+        description="Implement distinctive UI with bold aesthetics, curated typography, and purposeful motion",
+        dependencies=["ux_design"],
+        expected_artifacts=["frontend_components", "ui_implementation", "style_system"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    # Phase 3a: Design Pattern Review (runs in parallel with 3b)
+    plan.add_task(TaskSpec(
+        task_type="design_review",
+        assigned_role="design_reviewer",
+        description="Review implementation for design patterns, typography choices, color consistency, motion, and distinctiveness",
+        dependencies=["frontend_development"],
+        expected_artifacts=["design_review_report"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=60,
+    ))
+
+    # Phase 3b: Visual Beauty Assessment (runs in parallel with 3a)
+    plan.add_task(TaskSpec(
+        task_type="visual_review",
+        assigned_role="graphic_designer",
+        description="Evaluate visual beauty, emotional impact, typography refinement, color harmony, and overall aesthetic quality",
+        dependencies=["frontend_development"],
+        expected_artifacts=["visual_review_report", "beauty_score", "improvement_recommendations"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=60,
+    ))
+
+    # Phase 4: Design Iteration (if needed based on reviews)
+    plan.add_task(TaskSpec(
+        task_type="design_iteration",
+        assigned_role="frontend_engineer",
+        description="Implement design improvements based on design_review and visual_review feedback",
+        dependencies=["design_review", "visual_review"],
+        expected_artifacts=["updated_frontend_components", "iteration_changelog"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=50,
+    ))
+
+    # Phase 5: Final Beauty Check (Quality Gate)
+    plan.add_task(TaskSpec(
+        task_type="final_visual_review",
+        assigned_role="graphic_designer",
+        description="Final beauty assessment - verify improvements meet aesthetic standards (Beauty Score >= 7/10)",
+        dependencies=["design_iteration"],
+        expected_artifacts=["final_beauty_report", "final_beauty_score"],
+        validation_method=ValidationMethod.GATE_APPROVAL,
+        is_gate=True,
+        gate_blocks=["code_review"],
+        priority=45,
+    ))
+
+    # Phase 6: Code Review (Quality Gate)
+    plan.add_task(TaskSpec(
+        task_type="code_review",
+        assigned_role="code_reviewer",
+        description="Review code quality, accessibility, performance, and best practices",
+        dependencies=["final_visual_review"],
+        expected_artifacts=["code_review_report"],
+        validation_method=ValidationMethod.GATE_APPROVAL,
+        is_gate=True,
+        priority=40,
+    ))
+
+    return plan
+
+
+def create_design_iteration_workflow() -> WorkflowPlan:
+    """Create a quick design iteration workflow for improving existing frontends.
+
+    Use this when the frontend already exists but needs aesthetic improvements.
+    Focuses on: graphic_designer assessment → frontend fixes → re-assessment.
+    """
+    plan = WorkflowPlan()
+
+    # Phase 1: Initial Beauty Assessment
+    plan.add_task(TaskSpec(
+        task_type="initial_visual_review",
+        assigned_role="graphic_designer",
+        description="Evaluate current frontend for beauty, identify specific improvements needed",
+        expected_artifacts=["visual_review_report", "beauty_score", "prioritized_improvements"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=100,
+    ))
+
+    # Phase 2: Design Pattern Analysis
+    plan.add_task(TaskSpec(
+        task_type="design_analysis",
+        assigned_role="design_reviewer",
+        description="Analyze design patterns, typography, color usage, and motion implementation",
+        expected_artifacts=["design_analysis_report", "pattern_recommendations"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=100,
+    ))
+
+    # Phase 3: Implement Improvements
+    plan.add_task(TaskSpec(
+        task_type="design_improvements",
+        assigned_role="frontend_engineer",
+        description="Implement prioritized design improvements from visual and pattern reviews",
+        dependencies=["initial_visual_review", "design_analysis"],
+        expected_artifacts=["updated_components", "improvement_changelog"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    # Phase 4: Final Beauty Check (Quality Gate)
+    plan.add_task(TaskSpec(
+        task_type="final_beauty_check",
+        assigned_role="graphic_designer",
+        description="Final beauty assessment - verify Beauty Score >= 7/10, emotional impact achieved",
+        dependencies=["design_improvements"],
+        expected_artifacts=["final_beauty_report", "final_beauty_score"],
+        validation_method=ValidationMethod.GATE_APPROVAL,
+        is_gate=True,
+        priority=60,
     ))
 
     return plan
