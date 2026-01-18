@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Agent Orchestrator - Agent Interaction Graph</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%);
+            min-height: 100vh;
+            color: #f5f5f5;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #c9a962 0%, #d4af37 50%, #f5e6a3 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        #graph-container {
+            background: rgba(20, 20, 30, 0.6);
+            border: 1px solid rgba(201, 169, 98, 0.2);
+            border-radius: 16px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        svg {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .node:hover {
+            filter: brightness(1.2);
+        }
+
+        .node circle {
+            stroke-width: 3px;
+            filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+        }
+
+        .node text {
+            font-size: 11px;
+            font-weight: 600;
+            fill: #f5f5f5;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        .link {
+            fill: none;
+            stroke-opacity: 0.6;
+            transition: all 0.3s ease;
+        }
+
+        .link:hover {
+            stroke-opacity: 1;
+            stroke-width: 3px;
+        }
+
+        .link-label {
+            font-size: 9px;
+            fill: #888;
+            pointer-events: none;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .info-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .info-card {
+            background: rgba(30, 30, 45, 0.8);
+            border: 1px solid rgba(201, 169, 98, 0.15);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .info-card:hover {
+            border-color: rgba(201, 169, 98, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .info-card h3 {
+            color: #c9a962;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .info-card ul {
+            list-style: none;
+            color: #aaa;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .info-card li::before {
+            content: "→";
+            color: #c9a962;
+            margin-right: 0.5rem;
+        }
+
+        .workflow-phases {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .phase-badge {
+            background: rgba(201, 169, 98, 0.15);
+            border: 1px solid rgba(201, 169, 98, 0.3);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #c9a962;
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(20, 20, 30, 0.95);
+            border: 1px solid rgba(201, 169, 98, 0.4);
+            border-radius: 8px;
+            padding: 1rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            max-width: 280px;
+            z-index: 1000;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #tooltip h4 {
+            color: #c9a962;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        #tooltip p {
+            color: #aaa;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+
+        #tooltip .strengths {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            margin-top: 0.5rem;
+        }
+
+        #tooltip .strength-tag {
+            background: rgba(201, 169, 98, 0.2);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #c9a962;
+        }
+
+        .arrow-marker {
+            fill: #c9a962;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Multi-Agent Orchestrator</h1>
+            <p class="subtitle">How 13 specialized AI agents collaborate to build software</p>
+        </header>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #4ecdc4;"></div>
+                <span>Planning & Analysis</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #c9a962;"></div>
+                <span>Design & UX</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #7aa2f7;"></div>
+                <span>Engineering</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f7768e;"></div>
+                <span>Quality & Security</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #9ece6a;"></div>
+                <span>Operations</span>
+            </div>
+        </div>
+
+        <div id="graph-container">
+            <svg id="graph"></svg>
+        </div>
+
+        <div id="tooltip"></div>
+
+        <div class="info-panel">
+            <div class="info-card">
+                <h3>📊 Workflow Execution</h3>
+                <ul>
+                    <li>Tasks execute in dependency order</li>
+                    <li>Parallel execution where possible</li>
+                    <li>Quality gates block until approved</li>
+                    <li>Ralph Wiggum Loop for iteration</li>
+                </ul>
+                <div class="workflow-phases">
+                    <span class="phase-badge">Phase 1: Analysis</span>
+                    <span class="phase-badge">Phase 2: Design</span>
+                    <span class="phase-badge">Phase 3: Build</span>
+                    <span class="phase-badge">Phase 4: Review</span>
+                    <span class="phase-badge">Phase 5: Deploy</span>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>🔄 Agent Dependencies</h3>
+                <ul>
+                    <li>Arrows show information flow</li>
+                    <li>Business Analyst feeds all teams</li>
+                    <li>Designers inform Engineers</li>
+                    <li>Engineers feed Reviewers</li>
+                    <li>Reviewers feedback to Engineers</li>
+                </ul>
+            </div>
+
+            <div class="info-card">
+                <h3>✨ Design Quality Loop</h3>
+                <ul>
+                    <li>Graphic Designer assesses beauty</li>
+                    <li>Design Reviewer checks patterns</li>
+                    <li>Beauty score gates deployment</li>
+                    <li>Iterates until score ≥ 7/10</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Agent data with categories and connections
+        const agents = [
+            {
+                id: "business_analyst",
+                name: "Business\nAnalyst",
+                category: "planning",
+                strengths: ["requirements", "user stories", "acceptance criteria"],
+                description: "Gathers requirements and creates user stories"
+            },
+            {
+                id: "architect",
+                name: "Tech Lead\nArchitect",
+                category: "planning",
+                strengths: ["system design", "architecture", "patterns"],
+                description: "Designs system architecture and technical approach"
+            },
+            {
+                id: "ux_designer",
+                name: "UX\nDesigner",
+                category: "design",
+                strengths: ["wireframes", "user flows", "usability"],
+                description: "Creates wireframes and user experience flows"
+            },
+            {
+                id: "graphic_designer",
+                name: "Graphic\nDesigner",
+                category: "design",
+                strengths: ["visual beauty", "typography", "color harmony"],
+                description: "Assesses and improves visual aesthetics"
+            },
+            {
+                id: "design_reviewer",
+                name: "Design\nReviewer",
+                category: "design",
+                strengths: ["design patterns", "consistency", "anti-patterns"],
+                description: "Reviews for design quality and distinctiveness"
+            },
+            {
+                id: "frontend",
+                name: "Frontend\nEngineer",
+                category: "engineering",
+                strengths: ["React", "CSS", "components", "accessibility"],
+                description: "Builds user interfaces and client-side logic"
+            },
+            {
+                id: "backend",
+                name: "Backend\nEngineer",
+                category: "engineering",
+                strengths: ["APIs", "databases", "auth", "server logic"],
+                description: "Builds server-side logic and data layer"
+            },
+            {
+                id: "reviewer",
+                name: "Code\nReviewer",
+                category: "quality",
+                strengths: ["code quality", "bugs", "best practices"],
+                description: "Reviews code for quality and correctness"
+            },
+            {
+                id: "security",
+                name: "Security\nReviewer",
+                category: "quality",
+                strengths: ["vulnerabilities", "OWASP", "auth flaws"],
+                description: "Audits for security vulnerabilities"
+            },
+            {
+                id: "qa",
+                name: "QA\nEngineer",
+                category: "quality",
+                strengths: ["test plans", "E2E tests", "edge cases"],
+                description: "Creates and runs test suites"
+            },
+            {
+                id: "devops",
+                name: "DevOps\nEngineer",
+                category: "operations",
+                strengths: ["Docker", "CI/CD", "deployment"],
+                description: "Handles deployment and infrastructure"
+            },
+            {
+                id: "docs",
+                name: "Documentation\nWriter",
+                category: "operations",
+                strengths: ["API docs", "user guides", "README"],
+                description: "Creates documentation and guides"
+            }
+        ];
+
+        // Connections (source enhances target's work)
+        const links = [
+            { source: "business_analyst", target: "architect", type: "informs" },
+            { source: "business_analyst", target: "ux_designer", type: "informs" },
+            { source: "business_analyst", target: "frontend", type: "informs" },
+            { source: "business_analyst", target: "backend", type: "informs" },
+            { source: "architect", target: "backend", type: "guides" },
+            { source: "architect", target: "frontend", type: "guides" },
+            { source: "architect", target: "devops", type: "guides" },
+            { source: "ux_designer", target: "frontend", type: "designs for" },
+            { source: "ux_designer", target: "graphic_designer", type: "collaborates" },
+            { source: "frontend", target: "graphic_designer", type: "built for" },
+            { source: "frontend", target: "design_reviewer", type: "reviewed by" },
+            { source: "frontend", target: "reviewer", type: "reviewed by" },
+            { source: "backend", target: "reviewer", type: "reviewed by" },
+            { source: "backend", target: "security", type: "audited by" },
+            { source: "frontend", target: "security", type: "audited by" },
+            { source: "frontend", target: "qa", type: "tested by" },
+            { source: "backend", target: "qa", type: "tested by" },
+            { source: "graphic_designer", target: "frontend", type: "feedback to" },
+            { source: "graphic_designer", target: "design_reviewer", type: "assessed by" },
+            { source: "design_reviewer", target: "frontend", type: "feedback to" },
+            { source: "reviewer", target: "frontend", type: "feedback to" },
+            { source: "reviewer", target: "backend", type: "feedback to" },
+            { source: "security", target: "frontend", type: "feedback to" },
+            { source: "security", target: "backend", type: "feedback to" },
+            { source: "backend", target: "docs", type: "documented by" },
+            { source: "frontend", target: "docs", type: "documented by" },
+        ];
+
+        const categoryColors = {
+            planning: "#4ecdc4",
+            design: "#c9a962",
+            engineering: "#7aa2f7",
+            quality: "#f7768e",
+            operations: "#9ece6a"
+        };
+
+        // Set up SVG
+        const width = 1000;
+        const height = 700;
+
+        const svg = d3.select("#graph")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height]);
+
+        // Add arrow marker definition
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 25)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto")
+            .append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .attr("class", "arrow-marker");
+
+        // Create force simulation
+        const simulation = d3.forceSimulation(agents)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(150).strength(0.5))
+            .force("charge", d3.forceManyBody().strength(-800))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collision", d3.forceCollide().radius(60));
+
+        // Create links
+        const link = svg.append("g")
+            .selectAll("path")
+            .data(links)
+            .join("path")
+            .attr("class", "link")
+            .attr("stroke", d => {
+                const sourceAgent = agents.find(a => a.id === d.source.id || a.id === d.source);
+                return categoryColors[sourceAgent?.category] || "#666";
+            })
+            .attr("stroke-width", 1.5)
+            .attr("marker-end", "url(#arrowhead)");
+
+        // Create nodes
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(agents)
+            .join("g")
+            .attr("class", "node")
+            .call(d3.drag()
+                .on("start", dragstarted)
+                .on("drag", dragged)
+                .on("end", dragended));
+
+        // Add circles to nodes
+        node.append("circle")
+            .attr("r", 35)
+            .attr("fill", d => categoryColors[d.category])
+            .attr("stroke", d => d3.color(categoryColors[d.category]).brighter(0.5));
+
+        // Add text labels
+        node.each(function(d) {
+            const lines = d.name.split('\n');
+            const text = d3.select(this).append("text")
+                .attr("dy", lines.length > 1 ? "-0.3em" : "0.3em");
+
+            lines.forEach((line, i) => {
+                text.append("tspan")
+                    .attr("x", 0)
+                    .attr("dy", i === 0 ? 0 : "1.1em")
+                    .text(line);
+            });
+        });
+
+        // Tooltip
+        const tooltip = d3.select("#tooltip");
+
+        node.on("mouseover", function(event, d) {
+            tooltip.html(`
+                <h4>${d.name.replace('\n', ' ')}</h4>
+                <p>${d.description}</p>
+                <div class="strengths">
+                    ${d.strengths.map(s => `<span class="strength-tag">${s}</span>`).join('')}
+                </div>
+            `)
+            .style("left", (event.pageX + 15) + "px")
+            .style("top", (event.pageY - 10) + "px")
+            .style("opacity", 1);
+
+            // Highlight connected links
+            link.attr("stroke-opacity", l =>
+                (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15
+            ).attr("stroke-width", l =>
+                (l.source.id === d.id || l.target.id === d.id) ? 3 : 1.5
+            );
+
+            // Highlight connected nodes
+            node.style("opacity", n => {
+                const isConnected = links.some(l =>
+                    (l.source.id === d.id && l.target.id === n.id) ||
+                    (l.target.id === d.id && l.source.id === n.id) ||
+                    n.id === d.id
+                );
+                return isConnected ? 1 : 0.3;
+            });
+        })
+        .on("mouseout", function() {
+            tooltip.style("opacity", 0);
+            link.attr("stroke-opacity", 0.6).attr("stroke-width", 1.5);
+            node.style("opacity", 1);
+        });
+
+        // Update positions on tick
+        simulation.on("tick", () => {
+            link.attr("d", d => {
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy) * 2;
+                return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            });
+
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        // Drag functions
+        function dragstarted(event) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            event.subject.fx = event.subject.x;
+            event.subject.fy = event.subject.y;
+        }
+
+        function dragged(event) {
+            event.subject.fx = event.x;
+            event.subject.fy = event.y;
+        }
+
+        function dragended(event) {
+            if (!event.active) simulation.alphaTarget(0);
+            event.subject.fx = null;
+            event.subject.fy = null;
+        }
+    </script>
+</body>
+</html>
