@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "orchestrator": {
+      "command": "/bin/bash",
+      "args": ["/Users/adrianstier/Stier-sass-multiagent-2026/orchestrator/run_mcp_server.sh"]
+    }
+  }
+}
