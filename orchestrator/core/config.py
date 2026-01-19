@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     llm_model: str = "claude-sonnet-4-20250514"
     llm_max_tokens: int = 4096
+    api_request_delay_seconds: float = 2.0  # Delay between API calls to avoid rate limits
 
     # Orchestrator settings
     max_iterations: int = 50

@@ -123,6 +123,29 @@ async def handle_request(request: dict) -> dict:
                             },
                             "required": ["request"]
                         }
+                    },
+                    {
+                        "name": "get_workflow_plan",
+                        "description": "Get a detailed multi-agent workflow plan with prompts that Claude Code can execute directly. Returns agent system prompts and tasks - Claude Code then becomes each agent in sequence. No separate API calls needed - uses your Claude Max subscription.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "task": {
+                                    "type": "string",
+                                    "description": "Natural language description of what to build or do"
+                                },
+                                "working_directory": {
+                                    "type": "string",
+                                    "description": "Path to the project directory"
+                                },
+                                "agents": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Optional: specific agents to use (e.g., ['backend', 'reviewer']). If not provided, auto-selects based on task."
+                                }
+                            },
+                            "required": ["task"]
+                        }
                     }
                 ]
             }
@@ -175,13 +198,18 @@ async def execute_tool(tool_name: str, args: dict) -> Any:
     """Execute an orchestrator tool."""
     import os
 
-    # Check for API key before doing anything
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError(
-            "ANTHROPIC_API_KEY environment variable not set. "
-            "Ensure the MCP server config includes the 'env' block with the API key."
-        )
+    # Tools that don't require API key (they don't make their own API calls)
+    no_api_key_tools = ["get_workflow_plan", "build_prompt", "analyze_project", "run_tests"]
+
+    # Check for API key only for tools that need it
+    if tool_name not in no_api_key_tools:
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError(
+                "ANTHROPIC_API_KEY environment variable not set. "
+                "Ensure the MCP server config includes the 'env' block with the API key. "
+                "Or use 'get_workflow_plan' which uses Claude Code's connection instead."
+            )
 
     if tool_name == "orchestrate_task":
         # Use lightweight chat-based orchestrator (no Celery/Redis needed)
@@ -288,6 +316,100 @@ async def execute_tool(tool_name: str, args: dict) -> Any:
             "scope": result.scope,
             "explanation": result.explanation,
             "usage_hint": "Copy the 'optimized_prompt' and use it with orchestrate_task"
+        }
+
+    elif tool_name == "get_workflow_plan":
+        # Import agent definitions
+        from orchestrator.delegate import AGENTS
+        from orchestrator.prompt_builder import analyze_request
+
+        task = args["task"]
+        working_dir = args.get("working_directory", os.getcwd())
+
+        # Analyze the task to determine which agents to use
+        analysis = analyze_request(task, project_dir=working_dir)
+
+        # Get requested agents or use auto-detected ones
+        requested_agents = args.get("agents")
+        if requested_agents:
+            agent_sequence = [[a] for a in requested_agents]
+        else:
+            agent_sequence = analysis.agent_sequence
+
+        # Build the workflow plan with full agent prompts
+        workflow_steps = []
+        step_num = 1
+
+        for phase in agent_sequence:
+            phase_steps = []
+            for agent_name in phase:
+                if agent_name not in AGENTS:
+                    continue
+
+                agent_config = AGENTS[agent_name]
+
+                phase_steps.append({
+                    "step": step_num,
+                    "agent": agent_name,
+                    "agent_name": agent_config["name"],
+                    "system_prompt": agent_config["system_prompt"],
+                    "task_prompt": f"""## Task
+{task}
+
+## Working Directory
+{working_dir}
+
+## Instructions
+You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools.
+When you're done, provide a summary of what was accomplished.""",
+                    "available_tools": agent_config["tools"],
+                })
+                step_num += 1
+
+            if phase_steps:
+                workflow_steps.append({
+                    "phase": len(workflow_steps) + 1,
+                    "parallel": len(phase_steps) > 1,
+                    "agents": phase_steps
+                })
+
+        return {
+            "task": task,
+            "working_directory": working_dir,
+            "workflow_type": analysis.workflow_recommendation.value,
+            "total_agents": sum(len(phase["agents"]) for phase in workflow_steps),
+            "phases": len(workflow_steps),
+            "workflow": workflow_steps,
+            "execution_instructions": """
+## How to Execute This Workflow
+
+Claude Code should execute each phase in order. For each agent step:
+
+1. **Adopt the agent's persona** by following its system_prompt
+2. **Execute the task_prompt** using available tools (read files, write code, run tests, etc.)
+3. **Pass results to the next agent** - each agent builds on previous work
+
+### Parallel Phases
+When `parallel: true`, multiple agents can work simultaneously on independent tasks.
+
+### Sequential Phases
+When `parallel: false`, complete the agent's work before moving to the next.
+
+### Example Execution
+For each step, Claude Code should:
+```
+I am now acting as the [Agent Name].
+
+[System prompt context]
+
+[Execute the task using tools...]
+
+[Summarize what was accomplished]
+```
+
+This workflow uses YOUR Claude Max subscription - no separate API calls needed!
+""",
+            "available_agents": list(AGENTS.keys()),
         }
 
     else:

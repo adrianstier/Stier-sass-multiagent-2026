@@ -21,6 +21,7 @@ Usage:
 import asyncio
 import os
 import json
+import time
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -193,7 +194,19 @@ endpoints using JWT tokens. The frontend has LoginForm and RegisterForm componen
         messages = self.conversation_history.copy()
         max_iterations = 10
 
+        # Get delay setting
+        try:
+            from orchestrator.core.config import settings
+            api_delay = settings.api_request_delay_seconds
+        except ImportError:
+            api_delay = 2.0  # Default 2 second delay
+
         for iteration in range(max_iterations):
+            # Add delay between iterations to avoid rate limits
+            if iteration > 0 and api_delay > 0:
+                print(f"  (waiting {api_delay}s to avoid rate limits...)")
+                time.sleep(api_delay)
+
             response = client.messages.create(
                 model=self.model,
                 max_tokens=4096,

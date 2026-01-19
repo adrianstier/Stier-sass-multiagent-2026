@@ -1557,8 +1557,19 @@ Working Directory: {working_dir}
     total_tokens = 0
     final_output = ""
 
+    # Get API delay setting
+    try:
+        from orchestrator.core.config import settings
+        api_delay = settings.api_request_delay_seconds
+    except ImportError:
+        api_delay = 2.0  # Default 2 second delay
+
     # Agentic loop
     for iteration in range(max_iterations):
+        # Add delay between iterations to avoid rate limits
+        if iteration > 0 and api_delay > 0:
+            time.sleep(api_delay)
+
         response = client.messages.create(
             model=model,
             max_tokens=4096,
@@ -1757,8 +1768,19 @@ Working Directory: {cwd}
     total_tokens = 0
     final_output = ""
 
+    # Get API delay setting
+    try:
+        from orchestrator.core.config import settings
+        api_delay = settings.api_request_delay_seconds
+    except ImportError:
+        api_delay = 2.0  # Default 2 second delay
+
     # Agentic loop
     for iteration in range(max_iterations):
+        # Add delay between iterations to avoid rate limits
+        if iteration > 0 and api_delay > 0:
+            time.sleep(api_delay)
+
         response = client.messages.create(
             model=model,
             max_tokens=4096,

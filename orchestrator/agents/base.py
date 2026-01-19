@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -292,6 +293,11 @@ class BaseAgent(ABC):
                 "iteration": iteration,
                 "message_count": len(messages),
             })
+
+            # Add delay between API calls to avoid rate limits
+            if iteration > 1 and settings.api_request_delay_seconds > 0:
+                logger.debug(f"Waiting {settings.api_request_delay_seconds}s before API call (rate limit protection)")
+                time.sleep(settings.api_request_delay_seconds)
 
             # Make the API call with tools
             message = self.client.messages.create(
