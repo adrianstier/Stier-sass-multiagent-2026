@@ -53,7 +53,7 @@ async def handle_request(request: dict) -> dict:
                 "tools": [
                     {
                         "name": "orchestrate_task",
-                        "description": "Run a multi-agent workflow to complete a complex software task. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, and Business Analyst.",
+                        "description": "[REQUIRES API CREDITS - use get_workflow_plan instead] Run a multi-agent workflow using separate API calls. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, and Business Analyst.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -126,7 +126,7 @@ async def handle_request(request: dict) -> dict:
                     },
                     {
                         "name": "get_workflow_plan",
-                        "description": "Get a detailed multi-agent workflow plan with prompts that Claude Code can execute directly. Returns agent system prompts and tasks - Claude Code then becomes each agent in sequence. No separate API calls needed - uses your Claude Max subscription.",
+                        "description": "[RECOMMENDED] Get a multi-agent workflow plan that Claude Code executes directly using your Claude Max subscription. No API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, and more.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -315,7 +315,7 @@ async def execute_tool(tool_name: str, args: dict) -> Any:
             "intensity": result.intensity,
             "scope": result.scope,
             "explanation": result.explanation,
-            "usage_hint": "Copy the 'optimized_prompt' and use it with orchestrate_task"
+            "usage_hint": "Use 'get_workflow_plan' to execute this with Claude Code (recommended - uses your Claude Max subscription, no API credits needed)"
         }
 
     elif tool_name == "get_workflow_plan":
