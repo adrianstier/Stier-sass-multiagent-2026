@@ -655,6 +655,9 @@ prompt = next_agent_prompt + f"\\n\\n## Previous Agent Results\\n{previous_resul
         workflow_steps = []
         step_num = 1
 
+        # Frontend agents that should use Playwright
+        frontend_agents = ["frontend", "ux_engineer", "design_reviewer", "graphic_designer"]
+
         for phase in agent_sequence:
             phase_steps = []
             for agent_name in phase:
@@ -662,6 +665,33 @@ prompt = next_agent_prompt + f"\\n\\n## Previous Agent Results\\n{previous_resul
                     continue
 
                 agent_config = AGENTS[agent_name]
+                is_frontend_agent = agent_name in frontend_agents
+
+                # Playwright instructions for frontend agents
+                playwright_section = """
+## Visual Verification with Playwright (REQUIRED)
+
+You have access to Playwright browser tools. **USE THEM** to verify your work visually.
+
+### Available Playwright Tools
+- `mcp__playwright__browser_navigate(url)` - Navigate to a URL
+- `mcp__playwright__browser_take_screenshot(filename)` - Capture screenshots
+- `mcp__playwright__browser_resize(width, height)` - Test responsive breakpoints
+- `mcp__playwright__browser_snapshot()` - Get accessibility tree
+- `mcp__playwright__browser_click(element, ref)` - Click interactive elements
+- `mcp__playwright__browser_type(element, ref, text)` - Type in inputs
+- `mcp__playwright__browser_press_key(key)` - Test keyboard navigation
+- `mcp__playwright__browser_console_messages(level)` - Check for errors
+
+### Verification Workflow
+1. Navigate to the live preview URL
+2. Take screenshots at multiple viewports (1440x900, 768x1024, 375x812)
+3. Use browser_snapshot for accessibility verification
+4. Test all interactive elements
+5. Check console for errors
+
+**Do NOT mark your work complete without visual verification.**
+""" if is_frontend_agent else ""
 
                 # Build complete Task-ready prompt
                 full_prompt = f"""{agent_config['system_prompt']}
@@ -673,25 +703,28 @@ prompt = next_agent_prompt + f"\\n\\n## Previous Agent Results\\n{previous_resul
 
 ## Working Directory
 {working_dir}
-
+{playwright_section}
 ## Instructions
 You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
 - Use Read/Glob/Grep to explore the codebase
 - Use Edit/Write to make changes
 - Use Bash to run commands (tests, builds, etc.)
+{'''- Use Playwright browser tools to visually verify your implementation''' if is_frontend_agent else ''}
 
 When you're done, provide a clear summary of:
 1. What you accomplished
 2. Files created/modified
 3. Any issues encountered
-4. Recommendations for next steps"""
+{'''4. Screenshots captured for verification
+5. Recommendations for next steps''' if is_frontend_agent else '''4. Recommendations for next steps'''}"""
 
                 phase_steps.append({
                     "step": step_num,
                     "agent": agent_name,
                     "agent_name": agent_config["name"],
                     "task_prompt": full_prompt,
-                    "available_tools": agent_config["tools"],
+                    "available_tools": agent_config["tools"] + (["playwright"] if is_frontend_agent else []),
+                    "uses_playwright": is_frontend_agent,
                 })
                 step_num += 1
 
@@ -749,6 +782,16 @@ Task(subagent_type="general-purpose", description="Frontend Engineer", prompt=fr
 4. **Security** → Security Reviewer (sequential)
 
 Each agent has access to Claude Code's full toolset (Read, Write, Edit, Bash, Glob, Grep).
+
+### Playwright Visual Verification (Frontend Agents)
+Frontend-related agents (frontend, ux_engineer, design_reviewer, graphic_designer) are instructed to use Playwright for visual verification. **Ensure your app is running locally before executing these agents.**
+
+They will:
+- Navigate to the live URL
+- Take screenshots at multiple viewports
+- Test keyboard navigation and accessibility
+- Verify interactive states
+- Check for console errors
 """,
             "available_agents": list(AGENTS.keys()),
             "claude_code_integration": {
@@ -773,6 +816,42 @@ Each agent has access to Claude Code's full toolset (Read, Write, Edit, Bash, Gl
 
         agent_config = AGENTS[agent_type]
 
+        # Determine if this is a frontend-related agent that should use Playwright
+        frontend_agents = ["frontend", "ux_engineer", "design_reviewer", "graphic_designer"]
+        is_frontend_agent = agent_type in frontend_agents
+
+        # Playwright instructions for frontend agents
+        playwright_instructions = """
+## Visual Verification with Playwright (REQUIRED)
+
+You have access to Playwright browser tools. **USE THEM** to verify your work visually.
+
+### Available Playwright Tools
+- `mcp__playwright__browser_navigate(url)` - Navigate to a URL
+- `mcp__playwright__browser_take_screenshot(filename)` - Capture screenshots
+- `mcp__playwright__browser_resize(width, height)` - Test responsive breakpoints
+- `mcp__playwright__browser_snapshot()` - Get accessibility tree (critical for a11y)
+- `mcp__playwright__browser_click(element, ref)` - Click interactive elements
+- `mcp__playwright__browser_type(element, ref, text)` - Type in inputs
+- `mcp__playwright__browser_press_key(key)` - Test keyboard navigation (Tab, Enter, Escape)
+- `mcp__playwright__browser_console_messages(level)` - Check for JS errors
+- `mcp__playwright__browser_hover(element, ref)` - Test hover states
+
+### Verification Workflow
+1. Navigate to the live preview URL
+2. Take screenshots at multiple viewports (1440x900, 768x1024, 375x812)
+3. Use browser_snapshot to verify accessibility tree
+4. Click through all interactive elements
+5. Check console for errors
+
+### Iteration Loop
+```
+Code change → Visual verification → Fix issues → Re-verify → Complete
+```
+
+**Do NOT mark your work complete without visual verification.**
+""" if is_frontend_agent else ""
+
         # Build a complete prompt for Claude Code's Task tool
         task_prompt = f"""{agent_config['system_prompt']}
 
@@ -787,24 +866,27 @@ Each agent has access to Claude Code's full toolset (Read, Write, Edit, Bash, Gl
 {f'''## Context from Previous Agents
 {context}
 ''' if context else ''}
-
+{playwright_instructions}
 ## Instructions
 You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
 - Use Read/Glob/Grep to explore the codebase
 - Use Edit/Write to make changes
 - Use Bash to run commands (tests, builds, etc.)
+{'''- Use Playwright browser tools to visually verify your implementation''' if is_frontend_agent else ''}
 
 When you're done, provide a clear summary of:
 1. What you accomplished
 2. Files created/modified
 3. Any issues encountered
-4. Recommendations for next steps"""
+{'''4. Screenshots captured for verification''' if is_frontend_agent else ''}
+{'''5.''' if is_frontend_agent else '4.'} Recommendations for next steps"""
 
         return {
             "agent": agent_type,
             "agent_name": agent_config["name"],
             "task_prompt": task_prompt,
-            "tools_available": agent_config["tools"],
+            "tools_available": agent_config["tools"] + (["playwright"] if is_frontend_agent else []),
+            "uses_playwright": is_frontend_agent,
             "execution_hint": f"""
 ## How to Execute in Claude Code
 
@@ -819,7 +901,9 @@ Task(
 ```
 
 The agent will use Claude Code's built-in tools to complete the work.
-"""
+{'''
+**Note:** This agent will use Playwright for visual verification. Ensure the app is running locally before execution.
+''' if is_frontend_agent else ''}"""
         }
 
     elif tool_name == "list_agents":
