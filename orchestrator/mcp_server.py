@@ -20,7 +20,12 @@ Usage:
 import asyncio
 import json
 import sys
-from typing import Any
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List
+
+# In-memory workflow state (persists for session)
+WORKFLOW_STATE: Dict[str, dict] = {}
 
 # MCP protocol uses JSON-RPC over stdio
 async def handle_request(request: dict) -> dict:
@@ -46,6 +51,9 @@ async def handle_request(request: dict) -> dict:
         }
 
     elif method == "tools/list":
+        # Import data science tools
+        from orchestrator.agents.data_science.mcp_tools import DATA_SCIENCE_TOOLS
+
         return {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -53,7 +61,7 @@ async def handle_request(request: dict) -> dict:
                 "tools": [
                     {
                         "name": "orchestrate_task",
-                        "description": "[REQUIRES API CREDITS - use get_workflow_plan instead] Run a multi-agent workflow using separate API calls. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, and Business Analyst.",
+                        "description": "[USES CLAUDE MAX] Orchestrate a multi-agent workflow. Returns a complete execution plan with Task-ready prompts for Claude Code to run. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, and more. No separate API credits needed.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -126,7 +134,7 @@ async def handle_request(request: dict) -> dict:
                     },
                     {
                         "name": "get_workflow_plan",
-                        "description": "[RECOMMENDED] Get a multi-agent workflow plan that Claude Code executes directly using your Claude Max subscription. No API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, and more.",
+                        "description": "[USES CLAUDE MAX] Get a multi-agent workflow plan that Claude Code executes directly. No separate API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, and more.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -146,7 +154,153 @@ async def handle_request(request: dict) -> dict:
                             },
                             "required": ["task"]
                         }
-                    }
+                    },
+                    {
+                        "name": "execute_agent",
+                        "description": "[USES CLAUDE MAX] Execute a single specialized agent as a Claude Code Task subagent. Returns a Task-ready prompt. The agent will use Claude Code's tools (Read, Write, Edit, Bash, etc.) to complete its work.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "agent": {
+                                    "type": "string",
+                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist"
+                                },
+                                "task": {
+                                    "type": "string",
+                                    "description": "The specific task for this agent to complete"
+                                },
+                                "context": {
+                                    "type": "string",
+                                    "description": "Optional: context from previous agents (e.g., files created, decisions made)"
+                                },
+                                "working_directory": {
+                                    "type": "string",
+                                    "description": "Path to the project directory"
+                                }
+                            },
+                            "required": ["agent", "task"]
+                        }
+                    },
+                    {
+                        "name": "list_agents",
+                        "description": "List all available specialized agents and their capabilities.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    },
+                    {
+                        "name": "start_workflow",
+                        "description": "Start a new orchestrated workflow. Returns a workflow_id to track progress across agents.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "task": {
+                                    "type": "string",
+                                    "description": "The main task/goal for this workflow"
+                                },
+                                "working_directory": {
+                                    "type": "string",
+                                    "description": "Path to the project directory"
+                                }
+                            },
+                            "required": ["task"]
+                        }
+                    },
+                    {
+                        "name": "update_workflow",
+                        "description": "Update workflow state after an agent completes. Track progress, artifacts, and pass context to next agent.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "workflow_id": {
+                                    "type": "string",
+                                    "description": "The workflow ID from start_workflow"
+                                },
+                                "agent": {
+                                    "type": "string",
+                                    "description": "The agent that just completed"
+                                },
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["completed", "failed", "blocked"],
+                                    "description": "Agent completion status"
+                                },
+                                "summary": {
+                                    "type": "string",
+                                    "description": "Summary of what the agent accomplished"
+                                },
+                                "files_modified": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "List of files created/modified by this agent"
+                                },
+                                "issues": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Any issues or blockers encountered"
+                                }
+                            },
+                            "required": ["workflow_id", "agent", "status", "summary"]
+                        }
+                    },
+                    {
+                        "name": "get_workflow_status",
+                        "description": "Get current status of a workflow including all agent progress and accumulated context.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "workflow_id": {
+                                    "type": "string",
+                                    "description": "The workflow ID to check"
+                                }
+                            },
+                            "required": ["workflow_id"]
+                        }
+                    },
+                    {
+                        "name": "get_workflow_context",
+                        "description": "Get accumulated context from all completed agents to pass to the next agent.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "workflow_id": {
+                                    "type": "string",
+                                    "description": "The workflow ID"
+                                }
+                            },
+                            "required": ["workflow_id"]
+                        }
+                    },
+                    {
+                        "name": "check_allstate_compliance",
+                        "description": "Run Allstate/ISSAS compliance checks on the codebase. Scans for violations of ISSAS, NIST SP 800-88, NAIC AI Governance, and CPRA ADMT requirements. Returns detailed report with violation codes (SEC-01 through INT-02) and remediation guidance.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "Path to the directory to scan for compliance violations"
+                                },
+                                "exclude_dirs": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Directories to exclude from scanning (default: node_modules, .git, __pycache__, etc.)"
+                                }
+                            },
+                            "required": ["path"]
+                        }
+                    },
+                    {
+                        "name": "get_compliance_rules",
+                        "description": "Get the full list of Allstate/ISSAS compliance rules and their descriptions. Useful for understanding what the compliance checker looks for.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    },
+                    # Add data science tools
+                    *DATA_SCIENCE_TOOLS
                 ]
             }
         }
@@ -198,37 +352,170 @@ async def execute_tool(tool_name: str, args: dict) -> Any:
     """Execute an orchestrator tool."""
     import os
 
-    # Tools that don't require API key (they don't make their own API calls)
-    no_api_key_tools = ["get_workflow_plan", "build_prompt", "analyze_project", "run_tests"]
+    # Data science tools (handled separately)
+    ds_tools = ["ds_workflow_plan", "ds_analyze_data", "ds_quality_check", "ds_list_agents", "ds_artifact_status"]
 
-    # Check for API key only for tools that need it
-    if tool_name not in no_api_key_tools:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError(
-                "ANTHROPIC_API_KEY environment variable not set. "
-                "Ensure the MCP server config includes the 'env' block with the API key. "
-                "Or use 'get_workflow_plan' which uses Claude Code's connection instead."
-            )
+    if tool_name in ds_tools:
+        from orchestrator.agents.data_science.mcp_tools import execute_ds_tool
+        return await execute_ds_tool(tool_name, args)
+
+    # All tools now use Claude Max subscription - no separate API key needed
 
     if tool_name == "orchestrate_task":
-        # Use lightweight chat-based orchestrator (no Celery/Redis needed)
-        from orchestrator.chat import Orchestrator
+        # Returns a complete orchestration plan for Claude Code to execute
+        # No separate API calls needed - uses your Claude Max subscription
+        from orchestrator.delegate import AGENTS
+        from orchestrator.prompt_builder import analyze_request
 
-        working_dir = args.get("working_directory")
-        orch = Orchestrator(project_dir=working_dir)
+        task = args["task"]
+        project_type = args.get("project_type", "greenfield")
+        working_dir = args.get("working_directory", os.getcwd())
 
-        response = await orch.chat(args["task"])
+        # Analyze the task to determine which agents to use
+        analysis = analyze_request(task, project_dir=working_dir)
+
+        # Build orchestrator system prompt
+        orchestrator_prompt = f"""You are a Software Development Orchestrator coordinating specialized agents.
+
+## Your Task
+{task}
+
+## Working Directory
+{working_dir}
+
+## Project Type
+{project_type}
+
+## Workflow Type
+{analysis.workflow_recommendation.value}
+
+## Available Agents
+{chr(10).join(f"- **{name}**: {config['name']}" for name, config in AGENTS.items())}
+
+## Recommended Agent Sequence
+{analysis.agent_sequence}
+
+## Instructions
+As the orchestrator, you will:
+
+1. **Analyze** the task requirements
+2. **Delegate** to specialized agents using the Task tool
+3. **Coordinate** information flow between agents
+4. **Synthesize** results into a final summary
+
+For each agent in the sequence, spawn a Task subagent:
+```
+Task(
+    subagent_type="general-purpose",
+    description="<Agent Name>: <Brief task>",
+    prompt=<agent's full prompt from the workflow below>
+)
+```
+
+## Workflow Execution Plan
+"""
+
+        # Build the detailed workflow with agent prompts
+        workflow_steps = []
+        step_num = 1
+
+        for phase in analysis.agent_sequence:
+            phase_steps = []
+            for agent_name in phase:
+                if agent_name not in AGENTS:
+                    continue
+
+                agent_config = AGENTS[agent_name]
+
+                # Build complete Task-ready prompt
+                full_prompt = f"""{agent_config['system_prompt']}
+
+---
+
+## Your Task
+{task}
+
+## Working Directory
+{working_dir}
+
+## Instructions
+You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
+- Use Read/Glob/Grep to explore the codebase
+- Use Edit/Write to make changes
+- Use Bash to run commands (tests, builds, etc.)
+
+When you're done, provide a clear summary of:
+1. What you accomplished
+2. Files created/modified
+3. Any issues encountered
+4. Recommendations for next steps"""
+
+                phase_steps.append({
+                    "step": step_num,
+                    "agent": agent_name,
+                    "agent_name": agent_config["name"],
+                    "task_prompt": full_prompt,
+                    "available_tools": agent_config["tools"],
+                })
+                step_num += 1
+
+            if phase_steps:
+                workflow_steps.append({
+                    "phase": len(workflow_steps) + 1,
+                    "parallel": len(phase_steps) > 1,
+                    "agents": phase_steps
+                })
 
         return {
-            "success": not response.needs_input,
-            "message": response.message,
-            "tasks_dispatched": [
-                {"agent": t.agent, "task": t.task, "status": t.status}
-                for t in response.tasks_dispatched
-            ],
-            "files_modified": response.files_modified,
-            "question": response.question if response.needs_input else None
+            "task": task,
+            "working_directory": working_dir,
+            "project_type": project_type,
+            "workflow_type": analysis.workflow_recommendation.value,
+            "total_agents": sum(len(phase["agents"]) for phase in workflow_steps),
+            "phases": len(workflow_steps),
+            "orchestrator_prompt": orchestrator_prompt,
+            "workflow": workflow_steps,
+            "execution_mode": "claude_max",
+            "api_credits_required": False,
+            "execution_instructions": """
+## How to Execute This Workflow
+
+This orchestration plan uses YOUR Claude Max subscription - no separate API credits needed!
+
+### Option 1: Full Orchestration (Recommended)
+Use the orchestrator_prompt with a Task agent to coordinate the entire workflow:
+
+```
+Task(
+    subagent_type="general-purpose",
+    description="Orchestrator: {task[:40]}...",
+    prompt=orchestrator_prompt
+)
+```
+
+The orchestrator will spawn specialist agents as needed.
+
+### Option 2: Direct Agent Execution
+Execute each agent phase manually:
+
+```python
+# Phase 1
+Task(subagent_type="general-purpose", description="Tech Lead", prompt=workflow["phases"][0]["agents"][0]["task_prompt"])
+
+# Phase 2 (parallel if multiple agents)
+Task(subagent_type="general-purpose", description="Backend", prompt=backend_prompt)
+Task(subagent_type="general-purpose", description="Frontend", prompt=frontend_prompt)
+
+# Continue with remaining phases...
+```
+
+### Context Passing
+Pass results from previous agents to the next:
+```
+prompt = next_agent_prompt + f"\\n\\n## Previous Agent Results\\n{previous_results}"
+```
+""",
+            "available_agents": list(AGENTS.keys()),
         }
 
     elif tool_name == "analyze_project":
@@ -348,20 +635,34 @@ async def execute_tool(tool_name: str, args: dict) -> Any:
 
                 agent_config = AGENTS[agent_name]
 
-                phase_steps.append({
-                    "step": step_num,
-                    "agent": agent_name,
-                    "agent_name": agent_config["name"],
-                    "system_prompt": agent_config["system_prompt"],
-                    "task_prompt": f"""## Task
+                # Build complete Task-ready prompt
+                full_prompt = f"""{agent_config['system_prompt']}
+
+---
+
+## Your Task
 {task}
 
 ## Working Directory
 {working_dir}
 
 ## Instructions
-You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools.
-When you're done, provide a summary of what was accomplished.""",
+You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
+- Use Read/Glob/Grep to explore the codebase
+- Use Edit/Write to make changes
+- Use Bash to run commands (tests, builds, etc.)
+
+When you're done, provide a clear summary of:
+1. What you accomplished
+2. Files created/modified
+3. Any issues encountered
+4. Recommendations for next steps"""
+
+                phase_steps.append({
+                    "step": step_num,
+                    "agent": agent_name,
+                    "agent_name": agent_config["name"],
+                    "task_prompt": full_prompt,
                     "available_tools": agent_config["tools"],
                 })
                 step_num += 1
@@ -381,35 +682,381 @@ When you're done, provide a summary of what was accomplished.""",
             "phases": len(workflow_steps),
             "workflow": workflow_steps,
             "execution_instructions": """
-## How to Execute This Workflow
+## How to Execute This Workflow in Claude Code
 
-Claude Code should execute each phase in order. For each agent step:
+Use the **Task tool** to spawn each agent as a subagent. This leverages your Claude Max subscription.
 
-1. **Adopt the agent's persona** by following its system_prompt
-2. **Execute the task_prompt** using available tools (read files, write code, run tests, etc.)
-3. **Pass results to the next agent** - each agent builds on previous work
+### For Sequential Phases (parallel: false)
+Execute agents one at a time, passing context forward:
 
-### Parallel Phases
-When `parallel: true`, multiple agents can work simultaneously on independent tasks.
+```python
+# Phase 1: Tech Lead
+result_1 = Task(
+    subagent_type="general-purpose",
+    description="Tech Lead: Architecture",
+    prompt=workflow["phases"][0]["agents"][0]["task_prompt"]
+)
 
-### Sequential Phases
-When `parallel: false`, complete the agent's work before moving to the next.
-
-### Example Execution
-For each step, Claude Code should:
-```
-I am now acting as the [Agent Name].
-
-[System prompt context]
-
-[Execute the task using tools...]
-
-[Summarize what was accomplished]
+# Phase 2: Backend (with context from Phase 1)
+result_2 = Task(
+    subagent_type="general-purpose",
+    description="Backend: Implementation",
+    prompt=workflow["phases"][1]["agents"][0]["task_prompt"] + f"\\n\\n## Context from Tech Lead\\n{result_1}"
+)
 ```
 
-This workflow uses YOUR Claude Max subscription - no separate API calls needed!
+### For Parallel Phases (parallel: true)
+Launch multiple Task agents simultaneously:
+
+```python
+# Launch backend and frontend in parallel
+Task(subagent_type="general-purpose", description="Backend Engineer", prompt=backend_prompt)
+Task(subagent_type="general-purpose", description="Frontend Engineer", prompt=frontend_prompt)
+```
+
+### Workflow Pattern
+1. **Planning** → Tech Lead / Analyst (sequential)
+2. **Implementation** → Backend + Frontend (parallel)
+3. **Review** → Code Reviewer (sequential)
+4. **Security** → Security Reviewer (sequential)
+
+Each agent has access to Claude Code's full toolset (Read, Write, Edit, Bash, Glob, Grep).
 """,
             "available_agents": list(AGENTS.keys()),
+            "claude_code_integration": {
+                "recommended_approach": "Use Task tool with subagent_type='general-purpose'",
+                "parallel_execution": "Send multiple Task calls in same message for parallel phases",
+                "context_passing": "Append previous agent summaries to next agent's prompt",
+                "model_hint": "Use 'haiku' for simple agents like reviewer, 'sonnet' for complex agents like backend"
+            }
+        }
+
+    elif tool_name == "execute_agent":
+        # Return a prompt that Claude Code can use with the Task tool
+        from orchestrator.delegate import AGENTS
+
+        agent_type = args["agent"]
+        task = args["task"]
+        context = args.get("context", "")
+        working_dir = args.get("working_directory", os.getcwd())
+
+        if agent_type not in AGENTS:
+            raise ValueError(f"Unknown agent: {agent_type}. Available: {list(AGENTS.keys())}")
+
+        agent_config = AGENTS[agent_type]
+
+        # Build a complete prompt for Claude Code's Task tool
+        task_prompt = f"""{agent_config['system_prompt']}
+
+---
+
+## Your Task
+{task}
+
+## Working Directory
+{working_dir}
+
+{f'''## Context from Previous Agents
+{context}
+''' if context else ''}
+
+## Instructions
+You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
+- Use Read/Glob/Grep to explore the codebase
+- Use Edit/Write to make changes
+- Use Bash to run commands (tests, builds, etc.)
+
+When you're done, provide a clear summary of:
+1. What you accomplished
+2. Files created/modified
+3. Any issues encountered
+4. Recommendations for next steps"""
+
+        return {
+            "agent": agent_type,
+            "agent_name": agent_config["name"],
+            "task_prompt": task_prompt,
+            "tools_available": agent_config["tools"],
+            "execution_hint": f"""
+## How to Execute in Claude Code
+
+Use the Task tool to spawn this agent:
+
+```
+Task(
+    subagent_type="general-purpose",
+    description="{agent_config['name']}: {task[:50]}...",
+    prompt=<the task_prompt above>
+)
+```
+
+The agent will use Claude Code's built-in tools to complete the work.
+"""
+        }
+
+    elif tool_name == "list_agents":
+        from orchestrator.delegate import AGENTS
+
+        agents_list = []
+        for agent_id, config in AGENTS.items():
+            agents_list.append({
+                "id": agent_id,
+                "name": config["name"],
+                "tools": config["tools"],
+                "description": config["system_prompt"].split("\n")[0]  # First line as summary
+            })
+
+        return {
+            "agents": agents_list,
+            "usage": """
+## Using Agents in Claude Code
+
+1. **Start a workflow**: Use `start_workflow` to begin tracking
+2. **Get a workflow plan**: Use `get_workflow_plan` with your task description
+3. **Execute agents**: Use Claude Code's Task tool with prompts from the plan
+4. **Update progress**: Use `update_workflow` after each agent completes
+5. **Get context**: Use `get_workflow_context` to pass to next agent
+
+## Recommended Workflow
+
+```
+# Step 1: Start tracking
+workflow = start_workflow(task="Build user auth with JWT")
+
+# Step 2: Get the execution plan
+plan = get_workflow_plan(task="Build user auth with JWT")
+
+# Step 3: For each agent in the plan, use Claude Code's Task tool
+# Claude Code will spawn the agent and execute it
+
+# Step 4: After each agent completes, update the workflow
+update_workflow(
+    workflow_id=workflow.id,
+    agent="tech_lead",
+    status="completed",
+    summary="Designed JWT architecture with refresh tokens..."
+)
+
+# Step 5: Get context for next agent
+context = get_workflow_context(workflow_id=workflow.id)
+```
+"""
+        }
+
+    elif tool_name == "start_workflow":
+        from orchestrator.delegate import AGENTS
+        from orchestrator.prompt_builder import analyze_request
+
+        task = args["task"]
+        working_dir = args.get("working_directory", os.getcwd())
+
+        # Generate workflow ID
+        workflow_id = f"wf_{uuid.uuid4().hex[:8]}"
+
+        # Analyze task to determine agents
+        analysis = analyze_request(task, project_dir=working_dir)
+
+        # Initialize workflow state
+        WORKFLOW_STATE[workflow_id] = {
+            "id": workflow_id,
+            "task": task,
+            "working_directory": working_dir,
+            "status": "in_progress",
+            "created_at": datetime.now().isoformat(),
+            "workflow_type": analysis.workflow_recommendation.value,
+            "planned_agents": [agent for phase in analysis.agent_sequence for agent in phase],
+            "agent_results": [],
+            "files_modified": [],
+            "total_issues": []
+        }
+
+        return {
+            "workflow_id": workflow_id,
+            "task": task,
+            "working_directory": working_dir,
+            "planned_agents": WORKFLOW_STATE[workflow_id]["planned_agents"],
+            "workflow_type": analysis.workflow_recommendation.value,
+            "next_step": f"Use get_workflow_plan(task='{task}') to get agent prompts, then execute with Claude Code's Task tool"
+        }
+
+    elif tool_name == "update_workflow":
+        workflow_id = args["workflow_id"]
+
+        if workflow_id not in WORKFLOW_STATE:
+            raise ValueError(f"Unknown workflow: {workflow_id}")
+
+        workflow = WORKFLOW_STATE[workflow_id]
+
+        # Record agent result
+        agent_result = {
+            "agent": args["agent"],
+            "status": args["status"],
+            "summary": args["summary"],
+            "files_modified": args.get("files_modified", []),
+            "issues": args.get("issues", []),
+            "completed_at": datetime.now().isoformat()
+        }
+
+        workflow["agent_results"].append(agent_result)
+        workflow["files_modified"].extend(args.get("files_modified", []))
+        workflow["total_issues"].extend(args.get("issues", []))
+
+        # Determine next agent
+        completed_agents = [r["agent"] for r in workflow["agent_results"]]
+        remaining_agents = [a for a in workflow["planned_agents"] if a not in completed_agents]
+
+        # Update workflow status
+        if args["status"] == "failed":
+            workflow["status"] = "failed"
+        elif not remaining_agents:
+            workflow["status"] = "completed"
+
+        return {
+            "workflow_id": workflow_id,
+            "agent": args["agent"],
+            "status": args["status"],
+            "workflow_status": workflow["status"],
+            "completed_agents": completed_agents,
+            "remaining_agents": remaining_agents,
+            "next_agent": remaining_agents[0] if remaining_agents else None,
+            "total_files_modified": len(set(workflow["files_modified"])),
+            "total_issues": len(workflow["total_issues"])
+        }
+
+    elif tool_name == "get_workflow_status":
+        workflow_id = args["workflow_id"]
+
+        if workflow_id not in WORKFLOW_STATE:
+            raise ValueError(f"Unknown workflow: {workflow_id}")
+
+        workflow = WORKFLOW_STATE[workflow_id]
+        completed_agents = [r["agent"] for r in workflow["agent_results"]]
+        remaining_agents = [a for a in workflow["planned_agents"] if a not in completed_agents]
+
+        return {
+            "workflow_id": workflow_id,
+            "task": workflow["task"],
+            "status": workflow["status"],
+            "created_at": workflow["created_at"],
+            "workflow_type": workflow["workflow_type"],
+            "progress": {
+                "completed": len(completed_agents),
+                "total": len(workflow["planned_agents"]),
+                "percentage": round(len(completed_agents) / len(workflow["planned_agents"]) * 100) if workflow["planned_agents"] else 0
+            },
+            "completed_agents": completed_agents,
+            "remaining_agents": remaining_agents,
+            "files_modified": list(set(workflow["files_modified"])),
+            "issues": workflow["total_issues"],
+            "agent_results": workflow["agent_results"]
+        }
+
+    elif tool_name == "get_workflow_context":
+        workflow_id = args["workflow_id"]
+
+        if workflow_id not in WORKFLOW_STATE:
+            raise ValueError(f"Unknown workflow: {workflow_id}")
+
+        workflow = WORKFLOW_STATE[workflow_id]
+
+        # Build context from all completed agents
+        context_parts = [f"## Workflow: {workflow['task']}\n"]
+
+        for result in workflow["agent_results"]:
+            context_parts.append(f"""
+### {result['agent'].replace('_', ' ').title()} - {result['status'].upper()}
+{result['summary']}
+
+Files modified: {', '.join(result['files_modified']) if result['files_modified'] else 'None'}
+Issues: {', '.join(result['issues']) if result['issues'] else 'None'}
+""")
+
+        return {
+            "workflow_id": workflow_id,
+            "context": "\n".join(context_parts),
+            "files_modified": list(set(workflow["files_modified"])),
+            "completed_agents": [r["agent"] for r in workflow["agent_results"]],
+            "usage": "Pass this context to the next agent's prompt to maintain continuity"
+        }
+
+    elif tool_name == "check_allstate_compliance":
+        from orchestrator.compliance import check_compliance
+
+        path = args["path"]
+        # Handle relative paths
+        if not os.path.isabs(path):
+            path = os.path.abspath(path)
+
+        exclude_dirs = args.get("exclude_dirs")
+
+        report = check_compliance(path, exclude_dirs)
+
+        # Add summary
+        report["summary"] = f"""
+## Allstate/ISSAS Compliance Report
+
+**Status**: {"✅ COMPLIANT" if report["is_compliant"] else "❌ NON-COMPLIANT"}
+**Files Scanned**: {report["total_files_scanned"]}
+
+### Violation Counts
+- 🔴 Critical: {report["violation_counts"]["critical"]}
+- 🟠 High: {report["violation_counts"]["high"]}
+- 🟡 Medium: {report["violation_counts"]["medium"]}
+- 🔵 Low: {report["violation_counts"]["low"]}
+
+### Standards Covered
+- ISSAS (Information Security Standards for Allstate Suppliers)
+- NIST SP 800-88 (Data Destruction)
+- NIST AI RMF (AI Risk Management Framework)
+- NAIC Model Bulletin (Insurance AI Governance)
+- CPRA ADMT (Automated Decision-Making Technology)
+"""
+        return report
+
+    elif tool_name == "get_compliance_rules":
+        from orchestrator.compliance import COMPLIANCE_RULES
+
+        rules_formatted = []
+        for rule in COMPLIANCE_RULES:
+            rules_formatted.append({
+                "code": rule["code"],
+                "category": rule["category"].value,
+                "severity": rule["severity"].value,
+                "description": rule["description"],
+                "remediation": rule["remediation"],
+                "standard": rule.get("standard", ""),
+                "file_types": rule["file_types"],
+            })
+
+        return {
+            "rules": rules_formatted,
+            "total_rules": len(rules_formatted),
+            "categories": [
+                "ISSAS/Data Destruction",
+                "ISSAS/Encryption",
+                "Privacy/PII",
+                "Access Control",
+                "AI/ADMT Governance",
+                "Agency Operations",
+                "Data Exchange/ACORD",
+            ],
+            "usage": """
+## Allstate/ISSAS Compliance Rules
+
+These rules are automatically checked by the `check_allstate_compliance` tool.
+For InsurTech projects in the Allstate ecosystem, run compliance checks before deployment.
+
+### Critical Rules (Must Fix)
+- SEC-01: No soft deletes for PII (use crypto-shredding)
+- SEC-02: Use AES-256-GCM, FIPS 140-2/3 validated encryption
+- SEC-05: No hardcoded secrets in source code
+- AI-01: Zero Data Retention for LLM calls
+- AI-02: Human-in-the-loop for automated decisions
+
+### Available Agents
+Use the `allstate_compliance` agent for full compliance review, or
+`insurance_backend` agent for compliance-aware backend development.
+"""
         }
 
     else:
