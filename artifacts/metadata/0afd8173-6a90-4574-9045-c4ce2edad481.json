@@ -1,0 +1,39 @@
+{
+  "artifact_id": "0afd8173-6a90-4574-9045-c4ce2edad481",
+  "artifact_type": "cleaned_data",
+  "status": "draft",
+  "storage_path": "/data/cleaned/dataset.csv",
+  "relative_path": "",
+  "version_info": {
+    "version": "1.0.0",
+    "path": "",
+    "created_by": "",
+    "changelog": "",
+    "is_latest": true,
+    "timestamp": "2026-01-19T09:13:27.300240"
+  },
+  "lineage": {
+    "parent_artifacts": [],
+    "source_task": "",
+    "source_agent": "",
+    "transformation_description": "",
+    "created_at": "2026-01-19T09:13:27.300241"
+  },
+  "metadata": {
+    "name": "",
+    "description": "",
+    "tags": [],
+    "format": "",
+    "size_bytes": null,
+    "checksum": null,
+    "row_count": null,
+    "column_count": null,
+    "schema": null,
+    "model_type": null,
+    "framework": null,
+    "metrics": {},
+    "custom": {}
+  },
+  "created_at": "2026-01-19T09:13:27.300372",
+  "updated_at": "2026-01-19T09:13:27.300372"
+}

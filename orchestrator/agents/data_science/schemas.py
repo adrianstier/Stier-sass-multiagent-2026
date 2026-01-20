@@ -100,6 +100,14 @@ class Priority(str, Enum):
     LOW = "low"
 
 
+class HandoffType(str, Enum):
+    """Types of handoffs between agents."""
+    SEQUENTIAL = "sequential"
+    PARALLEL = "parallel"
+    FEEDBACK = "feedback"
+    ESCALATION = "escalation"
+
+
 # =============================================================================
 # Inter-Agent Communication Protocols
 # =============================================================================
@@ -222,10 +230,13 @@ class HandoffMessage:
     from_agent: str = ""
     to_agent: str = ""
     task_id: str = ""
+    handoff_type: HandoffType = HandoffType.SEQUENTIAL
     timestamp: datetime = field(default_factory=datetime.utcnow)
 
     # Payload
+    context_summary: str = ""  # Alias for context
     context: str = ""
+    artifacts: List[str] = field(default_factory=list)  # Simple list of artifact paths
     artifacts_provided: List[Dict[str, str]] = field(default_factory=list)
     important_notes: List[str] = field(default_factory=list)
     assumptions_made: List[str] = field(default_factory=list)

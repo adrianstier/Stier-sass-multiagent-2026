@@ -7,6 +7,8 @@ Provides a mechanism to:
 - Track DLQ metrics and alerts
 """
 
+from __future__ import annotations
+
 import json
 from datetime import datetime
 from typing import Dict, Any, List, Optional

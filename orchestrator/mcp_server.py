@@ -299,6 +299,34 @@ async def handle_request(request: dict) -> dict:
                             "properties": {}
                         }
                     },
+                    {
+                        "name": "frontend_review",
+                        "description": "[USES CLAUDE MAX] Run a comprehensive frontend review workflow with multiple specialized agents: Graphic Designer (visual beauty), UX Engineer (accessibility/usability), Frontend Engineer (code quality), and Design Reviewer (live Playwright testing). Returns Task-ready prompts for each agent.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "url": {
+                                    "type": "string",
+                                    "description": "Live URL to test (e.g., http://localhost:3000)"
+                                },
+                                "codebase_path": {
+                                    "type": "string",
+                                    "description": "Path to the frontend codebase"
+                                },
+                                "wcag_level": {
+                                    "type": "string",
+                                    "enum": ["A", "AA", "AAA"],
+                                    "default": "AA",
+                                    "description": "WCAG compliance level to check"
+                                },
+                                "figma_url": {
+                                    "type": "string",
+                                    "description": "Optional Figma design file URL for comparison"
+                                }
+                            },
+                            "required": ["url", "codebase_path"]
+                        }
+                    },
                     # Add data science tools
                     *DATA_SCIENCE_TOOLS
                 ]
@@ -1012,6 +1040,174 @@ Issues: {', '.join(result['issues']) if result['issues'] else 'None'}
 - CPRA ADMT (Automated Decision-Making Technology)
 """
         return report
+
+    elif tool_name == "frontend_review":
+        # Import the frontend review workflow
+        from orchestrator.workflows.frontend_review import get_frontend_review_prompts, WORKFLOW_DEFINITION
+
+        url = args["url"]
+        codebase_path = args["codebase_path"]
+        wcag_level = args.get("wcag_level", "AA")
+        figma_url = args.get("figma_url")
+
+        # Handle relative paths
+        if not os.path.isabs(codebase_path):
+            codebase_path = os.path.abspath(codebase_path)
+
+        # Get all agent prompts
+        prompts = get_frontend_review_prompts(
+            url=url,
+            codebase_path=codebase_path,
+            wcag_level=wcag_level,
+            figma_url=figma_url
+        )
+
+        return {
+            "workflow": "Frontend Review",
+            "url": url,
+            "codebase_path": codebase_path,
+            "wcag_level": wcag_level,
+            "figma_url": figma_url,
+            "phases": [
+                {
+                    "phase": 1,
+                    "name": "Visual & UX Assessment",
+                    "parallel": True,
+                    "description": "Graphic Designer and UX Engineer review in parallel",
+                    "agents": [
+                        {
+                            "agent": "graphic_designer",
+                            "name": "Graphic Designer",
+                            "task_prompt": prompts["graphic_designer"],
+                            "model": "sonnet",
+                            "focus": "Visual beauty, typography, color, emotional impact"
+                        },
+                        {
+                            "agent": "ux_engineer",
+                            "name": "UX Engineer",
+                            "task_prompt": prompts["ux_engineer"],
+                            "model": "sonnet",
+                            "focus": "Accessibility, usability, user flows"
+                        }
+                    ]
+                },
+                {
+                    "phase": 2,
+                    "name": "Code Review",
+                    "parallel": False,
+                    "description": "Frontend Engineer reviews code quality",
+                    "agents": [
+                        {
+                            "agent": "frontend_engineer",
+                            "name": "Frontend Engineer",
+                            "task_prompt": prompts["frontend_engineer"],
+                            "model": "sonnet",
+                            "focus": "Component architecture, performance, patterns"
+                        }
+                    ]
+                },
+                {
+                    "phase": 3,
+                    "name": "Live Testing & Synthesis",
+                    "parallel": False,
+                    "description": "Design Reviewer performs live Playwright testing",
+                    "agents": [
+                        {
+                            "agent": "design_reviewer",
+                            "name": "Design Reviewer",
+                            "task_prompt": prompts["design_reviewer"],
+                            "model": "sonnet",
+                            "focus": "Responsive testing, interactions, final report"
+                        }
+                    ]
+                }
+            ],
+            "execution_instructions": """
+## Frontend Review Workflow - Execution Guide
+
+### Quick Start
+Execute this 3-phase review using Claude Code's Task tool:
+
+### Phase 1: Visual & UX Assessment (PARALLEL)
+Launch both agents in a single message:
+
+```python
+Task(
+    subagent_type="general-purpose",
+    description="Graphic Designer: Visual beauty review",
+    prompt=phases[0]["agents"][0]["task_prompt"],
+    model="sonnet"
+)
+
+Task(
+    subagent_type="general-purpose",
+    description="UX Engineer: Accessibility review",
+    prompt=phases[0]["agents"][1]["task_prompt"],
+    model="sonnet"
+)
+```
+
+### Phase 2: Code Review (after Phase 1)
+```python
+Task(
+    subagent_type="general-purpose",
+    description="Frontend Engineer: Code review",
+    prompt=phases[1]["agents"][0]["task_prompt"] + "\\n\\n## Visual Review Findings\\n" + phase1_results,
+    model="sonnet"
+)
+```
+
+### Phase 3: Live Testing (after Phase 2)
+```python
+Task(
+    subagent_type="general-purpose",
+    description="Design Reviewer: Live testing",
+    prompt=phases[2]["agents"][0]["task_prompt"] + "\\n\\n## All Previous Findings\\n" + all_findings,
+    model="sonnet"
+)
+```
+
+### Review Outputs
+Each agent produces:
+- Detailed findings with priorities (Blocker/High/Medium/Nitpick)
+- Screenshots (from Playwright)
+- Specific recommendations
+- Verdict (APPROVED/NEEDS_CHANGES/BLOCKED)
+
+### Final Report Structure
+```
+# Frontend Review Report
+
+## Summary
+- URL: {url}
+- Codebase: {codebase_path}
+- Date: [timestamp]
+
+## Beauty Score: X/10 (Graphic Designer)
+## Accessibility: PASS/FAIL (UX Engineer)
+## Code Quality: APPROVED/CHANGES_REQUESTED (Frontend Engineer)
+## Live Testing: APPROVED/BLOCKED (Design Reviewer)
+
+## Issues by Priority
+### Blockers (must fix)
+### High Priority (fix before merge)
+### Medium Priority (follow-up)
+### Nitpicks (optional)
+
+## Screenshots
+[Attached from Playwright testing]
+
+## Final Verdict
+SHIP IT / NEEDS WORK / BLOCKED
+```
+""",
+            "triage_matrix": {
+                "BLOCKER": "Critical issues that prevent release - broken functionality, security issues, major accessibility failures",
+                "HIGH": "Significant issues to fix before merge - poor UX, performance problems, code quality concerns",
+                "MEDIUM": "Should fix in follow-up PR - minor UX improvements, code refactoring opportunities",
+                "NITPICK": "Optional polish - minor visual tweaks, preference-based suggestions"
+            }
+        }
 
     elif tool_name == "get_compliance_rules":
         from orchestrator.compliance import COMPLIANCE_RULES

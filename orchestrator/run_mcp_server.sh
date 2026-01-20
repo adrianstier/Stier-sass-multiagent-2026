@@ -5,6 +5,6 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
     export $(grep -v '^#' "$SCRIPT_DIR/.env" | xargs)
 fi
 
-export PYTHONPATH="$SCRIPT_DIR:$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="$(dirname "$SCRIPT_DIR"):$SCRIPT_DIR"
 cd "$SCRIPT_DIR"
-exec /usr/bin/python3 mcp_server.py
+exec "$SCRIPT_DIR/.venv/bin/python" mcp_server.py

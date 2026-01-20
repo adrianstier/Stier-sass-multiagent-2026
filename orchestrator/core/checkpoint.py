@@ -7,6 +7,8 @@ Provides:
 - Crash recovery mechanisms
 """
 
+from __future__ import annotations
+
 import json
 import pickle
 import base64

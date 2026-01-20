@@ -1,0 +1,39 @@
+{
+  "artifact_id": "2655f0bf-3bf8-48f3-8da7-2959f5600da4",
+  "artifact_type": "trained_model",
+  "status": "draft",
+  "storage_path": "models/model_v1.pkl",
+  "relative_path": "",
+  "version_info": {
+    "version": "1.0.0",
+    "path": "",
+    "created_by": "",
+    "changelog": "",
+    "is_latest": false,
+    "timestamp": "2026-01-19T09:13:10.777613"
+  },
+  "lineage": {
+    "parent_artifacts": [],
+    "source_task": "",
+    "source_agent": "",
+    "transformation_description": "",
+    "created_at": "2026-01-19T09:13:10.777614"
+  },
+  "metadata": {
+    "name": "",
+    "description": "",
+    "tags": [],
+    "format": "",
+    "size_bytes": null,
+    "checksum": null,
+    "row_count": null,
+    "column_count": null,
+    "schema": null,
+    "model_type": null,
+    "framework": null,
+    "metrics": {},
+    "custom": {}
+  },
+  "created_at": "2026-01-19T09:13:10.777617",
+  "updated_at": "2026-01-19T09:13:10.778125"
+}
