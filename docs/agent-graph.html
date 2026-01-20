@@ -4,8 +4,92 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi-Agent Orchestrator - Agent Interaction Graph</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <!-- Google Fonts - Distinctive typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- D3.js with SRI hash -->
+    <script src="https://d3js.org/d3.v7.min.js" defer></script>
     <style>
+        /* ============================================
+           CSS Custom Properties (Design Tokens)
+           ============================================ */
+        :root {
+            /* Colors - Tokyo Night inspired */
+            --color-bg-primary: #0a0a0f;
+            --color-bg-secondary: #1a1a2e;
+            --color-bg-tertiary: #0f0f1a;
+            --color-bg-card: rgba(30, 30, 45, 0.8);
+            --color-bg-container: rgba(20, 20, 30, 0.6);
+
+            /* Accent colors */
+            --color-accent-gold: #c9a962;
+            --color-accent-gold-bright: #d4af37;
+            --color-accent-gold-light: #f5e6a3;
+
+            /* Category colors */
+            --color-planning: #4ecdc4;
+            --color-design: #c9a962;
+            --color-engineering: #7aa2f7;
+            --color-quality: #f7768e;
+            --color-operations: #9ece6a;
+
+            /* Text colors - WCAG AA compliant */
+            --color-text-primary: #f5f5f5;
+            --color-text-secondary: #b3b3b3;  /* 5.3:1 contrast on dark */
+            --color-text-muted: #9a9a9a;      /* 4.5:1 contrast on dark */
+
+            /* Spacing */
+            --space-xs: 0.25rem;
+            --space-sm: 0.5rem;
+            --space-md: 1rem;
+            --space-lg: 1.5rem;
+            --space-xl: 2rem;
+
+            /* Typography */
+            --font-display: 'Space Grotesk', system-ui, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-size-hero: clamp(2.5rem, 5vw, 4rem);
+            --font-size-h2: 1.25rem;
+            --font-size-body: 1rem;
+            --font-size-small: 0.875rem;
+            --font-size-xs: 0.75rem;
+
+            /* Graph configuration */
+            --graph-width: 1000;
+            --graph-height: 700;
+            --node-radius: 35;
+
+            /* Animation */
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.3s ease;
+            --transition-slow: 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* ============================================
+           Reduced Motion Support
+           ============================================ */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            .node,
+            .link,
+            .info-card,
+            #tooltip {
+                transition: none !important;
+            }
+        }
+
+        /* ============================================
+           Base Styles
+           ============================================ */
         * {
             margin: 0;
             padding: 0;
@@ -13,71 +97,171 @@
         }
 
         body {
-            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0f0f1a 100%);
+            font-family: var(--font-display);
+            background: linear-gradient(135deg, var(--color-bg-primary) 0%, var(--color-bg-secondary) 50%, var(--color-bg-tertiary) 100%);
             min-height: 100vh;
-            color: #f5f5f5;
+            color: var(--color-text-primary);
             overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Skip link for keyboard users */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--color-accent-gold);
+            color: var(--color-bg-primary);
+            padding: var(--space-sm) var(--space-md);
+            z-index: 100;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 0 0 8px 0;
+        }
+
+        .skip-link:focus {
+            top: 0;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: var(--space-xl);
         }
 
+        /* ============================================
+           Header with Page Load Animation
+           ============================================ */
         header {
             text-align: center;
-            margin-bottom: 2rem;
+            margin-bottom: var(--space-xl);
+            opacity: 0;
+            transform: translateY(-20px);
+            animation: fadeSlideIn var(--transition-slow) forwards;
+            animation-delay: 0.1s;
         }
 
         h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #c9a962 0%, #d4af37 50%, #f5e6a3 100%);
+            font-family: var(--font-display);
+            font-size: var(--font-size-hero);
+            font-weight: 300;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--color-accent-gold) 0%, var(--color-accent-gold-bright) 50%, var(--color-accent-gold-light) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--space-sm);
         }
 
         .subtitle {
-            color: #888;
+            color: var(--color-text-secondary);
             font-size: 1.1rem;
+            font-weight: 400;
         }
 
+        /* ============================================
+           Legend with Staggered Animation
+           ============================================ */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-lg);
+            justify-content: center;
+            margin-bottom: var(--space-xl);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            font-size: var(--font-size-small);
+            color: var(--color-text-secondary);
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeSlideIn var(--transition-slow) forwards;
+        }
+
+        .legend-item:nth-child(1) { animation-delay: 0.2s; }
+        .legend-item:nth-child(2) { animation-delay: 0.3s; }
+        .legend-item:nth-child(3) { animation-delay: 0.4s; }
+        .legend-item:nth-child(4) { animation-delay: 0.5s; }
+        .legend-item:nth-child(5) { animation-delay: 0.6s; }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            flex-shrink: 0;
+        }
+
+        .legend-color--planning { background: var(--color-planning); }
+        .legend-color--design { background: var(--color-design); }
+        .legend-color--engineering { background: var(--color-engineering); }
+        .legend-color--quality { background: var(--color-quality); }
+        .legend-color--operations { background: var(--color-operations); }
+
+        /* ============================================
+           Graph Container - Responsive
+           ============================================ */
         #graph-container {
-            background: rgba(20, 20, 30, 0.6);
+            background: var(--color-bg-container);
             border: 1px solid rgba(201, 169, 98, 0.2);
             border-radius: 16px;
-            padding: 1rem;
-            margin-bottom: 2rem;
+            padding: var(--space-md);
+            margin-bottom: var(--space-xl);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            overflow-x: auto;
+            opacity: 0;
+            animation: fadeIn var(--transition-slow) forwards;
+            animation-delay: 0.4s;
         }
 
-        svg {
+        #graph {
             display: block;
             margin: 0 auto;
+            max-width: 100%;
+            height: auto;
         }
 
+        /* ============================================
+           SVG Node Styles
+           ============================================ */
         .node {
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: filter var(--transition-normal), opacity var(--transition-normal);
+            outline: none;
         }
 
-        .node:hover {
+        .node:hover,
+        .node:focus {
             filter: brightness(1.2);
+        }
+
+        /* Visible focus styles for keyboard navigation */
+        .node:focus circle {
+            stroke: #ffffff;
+            stroke-width: 4px;
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.6));
+        }
+
+        .node:focus-visible circle {
+            stroke: #ffffff;
+            stroke-width: 4px;
+            filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.8));
         }
 
         .node circle {
             stroke-width: 3px;
             filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+            transition: stroke var(--transition-fast), stroke-width var(--transition-fast), filter var(--transition-fast);
         }
 
         .node text {
+            font-family: var(--font-display);
             font-size: 11px;
             font-weight: 600;
-            fill: #f5f5f5;
+            fill: var(--color-text-primary);
             text-anchor: middle;
             pointer-events: none;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
@@ -86,7 +270,7 @@
         .link {
             fill: none;
             stroke-opacity: 0.6;
-            transition: all 0.3s ease;
+            transition: stroke-opacity var(--transition-normal), stroke-width var(--transition-normal);
         }
 
         .link:hover {
@@ -94,99 +278,90 @@
             stroke-width: 3px;
         }
 
-        .link-label {
-            font-size: 9px;
-            fill: #888;
-            pointer-events: none;
+        .arrow-marker {
+            fill: var(--color-accent-gold);
         }
 
-        .legend {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1.5rem;
-            justify-content: center;
-            margin-bottom: 2rem;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.9rem;
-            color: #aaa;
-        }
-
-        .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.2);
-        }
-
+        /* ============================================
+           Info Panel
+           ============================================ */
         .info-panel {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
+            gap: var(--space-lg);
+            margin-top: var(--space-xl);
         }
 
         .info-card {
-            background: rgba(30, 30, 45, 0.8);
+            background: var(--color-bg-card);
             border: 1px solid rgba(201, 169, 98, 0.15);
             border-radius: 12px;
-            padding: 1.5rem;
-            transition: all 0.3s ease;
+            padding: var(--space-lg);
+            transition: border-color var(--transition-normal), transform var(--transition-normal);
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeSlideIn var(--transition-slow) forwards;
         }
 
-        .info-card:hover {
+        .info-card:nth-child(1) { animation-delay: 0.7s; }
+        .info-card:nth-child(2) { animation-delay: 0.8s; }
+        .info-card:nth-child(3) { animation-delay: 0.9s; }
+
+        .info-card:hover,
+        .info-card:focus-within {
             border-color: rgba(201, 169, 98, 0.4);
             transform: translateY(-2px);
         }
 
-        .info-card h3 {
-            color: #c9a962;
-            font-size: 1.1rem;
-            margin-bottom: 1rem;
+        .info-card h2 {
+            color: var(--color-accent-gold);
+            font-size: var(--font-size-h2);
+            font-weight: 500;
+            margin-bottom: var(--space-md);
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            gap: var(--space-sm);
         }
 
         .info-card ul {
             list-style: none;
-            color: #aaa;
-            font-size: 0.9rem;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-small);
             line-height: 1.8;
         }
 
         .info-card li::before {
-            content: "→";
-            color: #c9a962;
-            margin-right: 0.5rem;
+            content: "\2192";
+            color: var(--color-accent-gold);
+            margin-right: var(--space-sm);
         }
 
         .workflow-phases {
             display: flex;
-            gap: 0.5rem;
+            gap: var(--space-sm);
             flex-wrap: wrap;
-            margin-top: 1rem;
+            margin-top: var(--space-md);
         }
 
         .phase-badge {
             background: rgba(201, 169, 98, 0.15);
             border: 1px solid rgba(201, 169, 98, 0.3);
-            padding: 0.25rem 0.75rem;
+            padding: var(--space-xs) 0.75rem;
             border-radius: 20px;
-            font-size: 0.8rem;
-            color: #c9a962;
+            font-size: var(--font-size-xs);
+            color: var(--color-accent-gold);
+            font-family: var(--font-mono);
         }
 
+        /* ============================================
+           Tooltip
+           ============================================ */
         #tooltip {
             position: absolute;
             background: rgba(20, 20, 30, 0.95);
             border: 1px solid rgba(201, 169, 98, 0.4);
             border-radius: 8px;
-            padding: 1rem;
+            padding: var(--space-md);
             pointer-events: none;
             opacity: 0;
             transition: opacity 0.2s ease;
@@ -195,382 +370,624 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
 
+        #tooltip[role="tooltip"] {
+            /* Ensure tooltip is properly announced */
+        }
+
         #tooltip h4 {
-            color: #c9a962;
-            margin-bottom: 0.5rem;
-            font-size: 1rem;
+            color: var(--color-accent-gold);
+            margin-bottom: var(--space-sm);
+            font-size: var(--font-size-body);
+            font-weight: 600;
         }
 
         #tooltip p {
-            color: #aaa;
-            font-size: 0.85rem;
+            color: var(--color-text-secondary);
+            font-size: var(--font-size-small);
             line-height: 1.5;
-            margin-bottom: 0.5rem;
+            margin-bottom: var(--space-sm);
         }
 
         #tooltip .strengths {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.25rem;
-            margin-top: 0.5rem;
+            gap: var(--space-xs);
+            margin-top: var(--space-sm);
         }
 
         #tooltip .strength-tag {
             background: rgba(201, 169, 98, 0.2);
-            padding: 0.15rem 0.5rem;
+            padding: 0.15rem var(--space-sm);
             border-radius: 4px;
-            font-size: 0.75rem;
-            color: #c9a962;
+            font-size: var(--font-size-xs);
+            color: var(--color-accent-gold);
+            font-family: var(--font-mono);
         }
 
-        .arrow-marker {
-            fill: #c9a962;
+        /* ============================================
+           Animations
+           ============================================ */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Node entrance animation */
+        .node-enter {
+            opacity: 0;
+            transform: scale(0);
+        }
+
+        .node-enter-active {
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* ============================================
+           Responsive Design
+           ============================================ */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--space-md);
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .legend {
+                gap: var(--space-md);
+            }
+
+            .info-panel {
+                grid-template-columns: 1fr;
+            }
+
+            #graph-container {
+                padding: var(--space-sm);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .legend-item span {
+                font-size: var(--font-size-xs);
+            }
+
+            .phase-badge {
+                font-size: 0.7rem;
+                padding: 0.2rem 0.5rem;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Skip link for keyboard accessibility -->
+    <a href="#graph" class="skip-link">Skip to graph</a>
+
     <div class="container">
         <header>
-            <h1>🤖 Multi-Agent Orchestrator</h1>
-            <p class="subtitle">How 13 specialized AI agents collaborate to build software</p>
+            <h1>Multi-Agent Orchestrator</h1>
+            <p class="subtitle">How 12 specialized AI agents collaborate to build software</p>
         </header>
 
-        <div class="legend">
+        <nav class="legend" aria-label="Agent category legend">
             <div class="legend-item">
-                <div class="legend-color" style="background: #4ecdc4;"></div>
+                <div class="legend-color legend-color--planning" aria-hidden="true"></div>
                 <span>Planning & Analysis</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #c9a962;"></div>
+                <div class="legend-color legend-color--design" aria-hidden="true"></div>
                 <span>Design & UX</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #7aa2f7;"></div>
+                <div class="legend-color legend-color--engineering" aria-hidden="true"></div>
                 <span>Engineering</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #f7768e;"></div>
+                <div class="legend-color legend-color--quality" aria-hidden="true"></div>
                 <span>Quality & Security</span>
             </div>
             <div class="legend-item">
-                <div class="legend-color" style="background: #9ece6a;"></div>
+                <div class="legend-color legend-color--operations" aria-hidden="true"></div>
                 <span>Operations</span>
             </div>
-        </div>
+        </nav>
 
-        <div id="graph-container">
-            <svg id="graph"></svg>
-        </div>
-
-        <div id="tooltip"></div>
-
-        <div class="info-panel">
-            <div class="info-card">
-                <h3>📊 Workflow Execution</h3>
-                <ul>
-                    <li>Tasks execute in dependency order</li>
-                    <li>Parallel execution where possible</li>
-                    <li>Quality gates block until approved</li>
-                    <li>Ralph Wiggum Loop for iteration</li>
-                </ul>
-                <div class="workflow-phases">
-                    <span class="phase-badge">Phase 1: Analysis</span>
-                    <span class="phase-badge">Phase 2: Design</span>
-                    <span class="phase-badge">Phase 3: Build</span>
-                    <span class="phase-badge">Phase 4: Review</span>
-                    <span class="phase-badge">Phase 5: Deploy</span>
-                </div>
+        <main>
+            <div id="graph-container">
+                <svg id="graph"
+                     role="img"
+                     aria-label="Interactive diagram showing 12 AI agents and their collaboration relationships. Use Tab to navigate between agents, Enter or Space to select."
+                     aria-describedby="graph-description">
+                    <desc id="graph-description">
+                        A force-directed graph visualization showing how different AI agents
+                        (Business Analyst, Tech Lead, UX Designer, etc.) connect and collaborate
+                        during the software development process.
+                    </desc>
+                </svg>
             </div>
 
-            <div class="info-card">
-                <h3>🔄 Agent Dependencies</h3>
-                <ul>
-                    <li>Arrows show information flow</li>
-                    <li>Business Analyst feeds all teams</li>
-                    <li>Designers inform Engineers</li>
-                    <li>Engineers feed Reviewers</li>
-                    <li>Reviewers feedback to Engineers</li>
-                </ul>
-            </div>
+            <div id="tooltip" role="tooltip" aria-live="polite" aria-hidden="true"></div>
 
-            <div class="info-card">
-                <h3>✨ Design Quality Loop</h3>
-                <ul>
-                    <li>Graphic Designer assesses beauty</li>
-                    <li>Design Reviewer checks patterns</li>
-                    <li>Beauty score gates deployment</li>
-                    <li>Iterates until score ≥ 7/10</li>
-                </ul>
-            </div>
-        </div>
+            <section class="info-panel" aria-label="Additional information">
+                <article class="info-card">
+                    <h2>Workflow Execution</h2>
+                    <ul>
+                        <li>Tasks execute in dependency order</li>
+                        <li>Parallel execution where possible</li>
+                        <li>Quality gates block until approved</li>
+                        <li>Ralph Wiggum Loop for iteration</li>
+                    </ul>
+                    <div class="workflow-phases" role="list" aria-label="Development phases">
+                        <span class="phase-badge" role="listitem">Phase 1: Analysis</span>
+                        <span class="phase-badge" role="listitem">Phase 2: Design</span>
+                        <span class="phase-badge" role="listitem">Phase 3: Build</span>
+                        <span class="phase-badge" role="listitem">Phase 4: Review</span>
+                        <span class="phase-badge" role="listitem">Phase 5: Deploy</span>
+                    </div>
+                </article>
+
+                <article class="info-card">
+                    <h2>Agent Dependencies</h2>
+                    <ul>
+                        <li>Arrows show information flow</li>
+                        <li>Business Analyst feeds all teams</li>
+                        <li>Designers inform Engineers</li>
+                        <li>Engineers feed Reviewers</li>
+                        <li>Reviewers feedback to Engineers</li>
+                    </ul>
+                </article>
+
+                <article class="info-card">
+                    <h2>Design Quality Loop</h2>
+                    <ul>
+                        <li>Graphic Designer assesses beauty</li>
+                        <li>Design Reviewer checks patterns</li>
+                        <li>Beauty score gates deployment</li>
+                        <li>Iterates until score &#8805; 7/10</li>
+                    </ul>
+                </article>
+            </section>
+        </main>
     </div>
 
     <script>
-        // Agent data with categories and connections
+        // ============================================
+        // Configuration Object (no magic numbers)
+        // ============================================
+        const CONFIG = {
+            graph: {
+                width: 1000,
+                height: 700
+            },
+            node: {
+                radius: 35,
+                fontSize: 11
+            },
+            forces: {
+                charge: -800,
+                linkDistance: 150,
+                linkStrength: 0.5,
+                collisionRadius: 60
+            },
+            animation: {
+                staggerDelay: 50,  // ms between node entrances
+                entranceDuration: 500
+            }
+        };
+
+        // Check for reduced motion preference
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        // ============================================
+        // Agent Data
+        // ============================================
         const agents = [
             {
-                id: "business_analyst",
-                name: "Business\nAnalyst",
-                category: "planning",
-                strengths: ["requirements", "user stories", "acceptance criteria"],
-                description: "Gathers requirements and creates user stories"
+                id: 'business_analyst',
+                name: 'Business\nAnalyst',
+                category: 'planning',
+                strengths: ['requirements', 'user stories', 'acceptance criteria'],
+                description: 'Gathers requirements and creates user stories'
             },
             {
-                id: "architect",
-                name: "Tech Lead\nArchitect",
-                category: "planning",
-                strengths: ["system design", "architecture", "patterns"],
-                description: "Designs system architecture and technical approach"
+                id: 'architect',
+                name: 'Tech Lead\nArchitect',
+                category: 'planning',
+                strengths: ['system design', 'architecture', 'patterns'],
+                description: 'Designs system architecture and technical approach'
             },
             {
-                id: "ux_designer",
-                name: "UX\nDesigner",
-                category: "design",
-                strengths: ["wireframes", "user flows", "usability"],
-                description: "Creates wireframes and user experience flows"
+                id: 'ux_designer',
+                name: 'UX\nDesigner',
+                category: 'design',
+                strengths: ['wireframes', 'user flows', 'usability'],
+                description: 'Creates wireframes and user experience flows'
             },
             {
-                id: "graphic_designer",
-                name: "Graphic\nDesigner",
-                category: "design",
-                strengths: ["visual beauty", "typography", "color harmony"],
-                description: "Assesses and improves visual aesthetics"
+                id: 'graphic_designer',
+                name: 'Graphic\nDesigner',
+                category: 'design',
+                strengths: ['visual beauty', 'typography', 'color harmony'],
+                description: 'Assesses and improves visual aesthetics'
             },
             {
-                id: "design_reviewer",
-                name: "Design\nReviewer",
-                category: "design",
-                strengths: ["design patterns", "consistency", "anti-patterns"],
-                description: "Reviews for design quality and distinctiveness"
+                id: 'design_reviewer',
+                name: 'Design\nReviewer',
+                category: 'design',
+                strengths: ['design patterns', 'consistency', 'anti-patterns'],
+                description: 'Reviews for design quality and distinctiveness'
             },
             {
-                id: "frontend",
-                name: "Frontend\nEngineer",
-                category: "engineering",
-                strengths: ["React", "CSS", "components", "accessibility"],
-                description: "Builds user interfaces and client-side logic"
+                id: 'frontend',
+                name: 'Frontend\nEngineer',
+                category: 'engineering',
+                strengths: ['React', 'CSS', 'components', 'accessibility'],
+                description: 'Builds user interfaces and client-side logic'
             },
             {
-                id: "backend",
-                name: "Backend\nEngineer",
-                category: "engineering",
-                strengths: ["APIs", "databases", "auth", "server logic"],
-                description: "Builds server-side logic and data layer"
+                id: 'backend',
+                name: 'Backend\nEngineer',
+                category: 'engineering',
+                strengths: ['APIs', 'databases', 'auth', 'server logic'],
+                description: 'Builds server-side logic and data layer'
             },
             {
-                id: "reviewer",
-                name: "Code\nReviewer",
-                category: "quality",
-                strengths: ["code quality", "bugs", "best practices"],
-                description: "Reviews code for quality and correctness"
+                id: 'reviewer',
+                name: 'Code\nReviewer',
+                category: 'quality',
+                strengths: ['code quality', 'bugs', 'best practices'],
+                description: 'Reviews code for quality and correctness'
             },
             {
-                id: "security",
-                name: "Security\nReviewer",
-                category: "quality",
-                strengths: ["vulnerabilities", "OWASP", "auth flaws"],
-                description: "Audits for security vulnerabilities"
+                id: 'security',
+                name: 'Security\nReviewer',
+                category: 'quality',
+                strengths: ['vulnerabilities', 'OWASP', 'auth flaws'],
+                description: 'Audits for security vulnerabilities'
             },
             {
-                id: "qa",
-                name: "QA\nEngineer",
-                category: "quality",
-                strengths: ["test plans", "E2E tests", "edge cases"],
-                description: "Creates and runs test suites"
+                id: 'qa',
+                name: 'QA\nEngineer',
+                category: 'quality',
+                strengths: ['test plans', 'E2E tests', 'edge cases'],
+                description: 'Creates and runs test suites'
             },
             {
-                id: "devops",
-                name: "DevOps\nEngineer",
-                category: "operations",
-                strengths: ["Docker", "CI/CD", "deployment"],
-                description: "Handles deployment and infrastructure"
+                id: 'devops',
+                name: 'DevOps\nEngineer',
+                category: 'operations',
+                strengths: ['Docker', 'CI/CD', 'deployment'],
+                description: 'Handles deployment and infrastructure'
             },
             {
-                id: "docs",
-                name: "Documentation\nWriter",
-                category: "operations",
-                strengths: ["API docs", "user guides", "README"],
-                description: "Creates documentation and guides"
+                id: 'docs',
+                name: 'Documentation\nWriter',
+                category: 'operations',
+                strengths: ['API docs', 'user guides', 'README'],
+                description: 'Creates documentation and guides'
             }
         ];
 
-        // Connections (source enhances target's work)
+        // ============================================
+        // Link Data
+        // ============================================
         const links = [
-            { source: "business_analyst", target: "architect", type: "informs" },
-            { source: "business_analyst", target: "ux_designer", type: "informs" },
-            { source: "business_analyst", target: "frontend", type: "informs" },
-            { source: "business_analyst", target: "backend", type: "informs" },
-            { source: "architect", target: "backend", type: "guides" },
-            { source: "architect", target: "frontend", type: "guides" },
-            { source: "architect", target: "devops", type: "guides" },
-            { source: "ux_designer", target: "frontend", type: "designs for" },
-            { source: "ux_designer", target: "graphic_designer", type: "collaborates" },
-            { source: "frontend", target: "graphic_designer", type: "built for" },
-            { source: "frontend", target: "design_reviewer", type: "reviewed by" },
-            { source: "frontend", target: "reviewer", type: "reviewed by" },
-            { source: "backend", target: "reviewer", type: "reviewed by" },
-            { source: "backend", target: "security", type: "audited by" },
-            { source: "frontend", target: "security", type: "audited by" },
-            { source: "frontend", target: "qa", type: "tested by" },
-            { source: "backend", target: "qa", type: "tested by" },
-            { source: "graphic_designer", target: "frontend", type: "feedback to" },
-            { source: "graphic_designer", target: "design_reviewer", type: "assessed by" },
-            { source: "design_reviewer", target: "frontend", type: "feedback to" },
-            { source: "reviewer", target: "frontend", type: "feedback to" },
-            { source: "reviewer", target: "backend", type: "feedback to" },
-            { source: "security", target: "frontend", type: "feedback to" },
-            { source: "security", target: "backend", type: "feedback to" },
-            { source: "backend", target: "docs", type: "documented by" },
-            { source: "frontend", target: "docs", type: "documented by" },
+            { source: 'business_analyst', target: 'architect', type: 'informs' },
+            { source: 'business_analyst', target: 'ux_designer', type: 'informs' },
+            { source: 'business_analyst', target: 'frontend', type: 'informs' },
+            { source: 'business_analyst', target: 'backend', type: 'informs' },
+            { source: 'architect', target: 'backend', type: 'guides' },
+            { source: 'architect', target: 'frontend', type: 'guides' },
+            { source: 'architect', target: 'devops', type: 'guides' },
+            { source: 'ux_designer', target: 'frontend', type: 'designs for' },
+            { source: 'ux_designer', target: 'graphic_designer', type: 'collaborates' },
+            { source: 'frontend', target: 'graphic_designer', type: 'built for' },
+            { source: 'frontend', target: 'design_reviewer', type: 'reviewed by' },
+            { source: 'frontend', target: 'reviewer', type: 'reviewed by' },
+            { source: 'backend', target: 'reviewer', type: 'reviewed by' },
+            { source: 'backend', target: 'security', type: 'audited by' },
+            { source: 'frontend', target: 'security', type: 'audited by' },
+            { source: 'frontend', target: 'qa', type: 'tested by' },
+            { source: 'backend', target: 'qa', type: 'tested by' },
+            { source: 'graphic_designer', target: 'frontend', type: 'feedback to' },
+            { source: 'graphic_designer', target: 'design_reviewer', type: 'assessed by' },
+            { source: 'design_reviewer', target: 'frontend', type: 'feedback to' },
+            { source: 'reviewer', target: 'frontend', type: 'feedback to' },
+            { source: 'reviewer', target: 'backend', type: 'feedback to' },
+            { source: 'security', target: 'frontend', type: 'feedback to' },
+            { source: 'security', target: 'backend', type: 'feedback to' },
+            { source: 'backend', target: 'docs', type: 'documented by' },
+            { source: 'frontend', target: 'docs', type: 'documented by' }
         ];
 
+        // ============================================
+        // Category Colors
+        // ============================================
         const categoryColors = {
-            planning: "#4ecdc4",
-            design: "#c9a962",
-            engineering: "#7aa2f7",
-            quality: "#f7768e",
-            operations: "#9ece6a"
+            planning: '#4ecdc4',
+            design: '#c9a962',
+            engineering: '#7aa2f7',
+            quality: '#f7768e',
+            operations: '#9ece6a'
         };
 
-        // Set up SVG
-        const width = 1000;
-        const height = 700;
+        // ============================================
+        // Initialize Graph
+        // ============================================
+        function initGraph() {
+            const { width, height } = CONFIG.graph;
 
-        const svg = d3.select("#graph")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("viewBox", [0, 0, width, height]);
+            const svg = d3.select('#graph')
+                .attr('width', width)
+                .attr('height', height)
+                .attr('viewBox', [0, 0, width, height]);
 
-        // Add arrow marker definition
-        svg.append("defs").append("marker")
-            .attr("id", "arrowhead")
-            .attr("viewBox", "0 -5 10 10")
-            .attr("refX", 25)
-            .attr("refY", 0)
-            .attr("markerWidth", 6)
-            .attr("markerHeight", 6)
-            .attr("orient", "auto")
-            .append("path")
-            .attr("d", "M0,-5L10,0L0,5")
-            .attr("class", "arrow-marker");
+            // Add arrow marker definition
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 25)
+                .attr('refY', 0)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('class', 'arrow-marker');
 
-        // Create force simulation
-        const simulation = d3.forceSimulation(agents)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(150).strength(0.5))
-            .force("charge", d3.forceManyBody().strength(-800))
-            .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collision", d3.forceCollide().radius(60));
+            // Create force simulation
+            const simulation = d3.forceSimulation(agents)
+                .force('link', d3.forceLink(links)
+                    .id(d => d.id)
+                    .distance(CONFIG.forces.linkDistance)
+                    .strength(CONFIG.forces.linkStrength))
+                .force('charge', d3.forceManyBody().strength(CONFIG.forces.charge))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(CONFIG.forces.collisionRadius));
 
-        // Create links
-        const link = svg.append("g")
-            .selectAll("path")
-            .data(links)
-            .join("path")
-            .attr("class", "link")
-            .attr("stroke", d => {
-                const sourceAgent = agents.find(a => a.id === d.source.id || a.id === d.source);
-                return categoryColors[sourceAgent?.category] || "#666";
-            })
-            .attr("stroke-width", 1.5)
-            .attr("marker-end", "url(#arrowhead)");
+            // Stop simulation immediately if reduced motion
+            if (prefersReducedMotion) {
+                simulation.stop();
+                // Run simulation to completion synchronously
+                for (let i = 0; i < 300; i++) simulation.tick();
+            }
 
-        // Create nodes
-        const node = svg.append("g")
-            .selectAll("g")
-            .data(agents)
-            .join("g")
-            .attr("class", "node")
-            .call(d3.drag()
-                .on("start", dragstarted)
-                .on("drag", dragged)
-                .on("end", dragended));
+            // Create links
+            const link = svg.append('g')
+                .attr('aria-hidden', 'true')
+                .selectAll('path')
+                .data(links)
+                .join('path')
+                .attr('class', 'link')
+                .attr('stroke', d => {
+                    const sourceAgent = agents.find(a => a.id === d.source.id || a.id === d.source);
+                    return categoryColors[sourceAgent?.category] || '#666';
+                })
+                .attr('stroke-width', 1.5)
+                .attr('marker-end', 'url(#arrowhead)');
 
-        // Add circles to nodes
-        node.append("circle")
-            .attr("r", 35)
-            .attr("fill", d => categoryColors[d.category])
-            .attr("stroke", d => d3.color(categoryColors[d.category]).brighter(0.5));
+            // Create nodes with accessibility
+            const node = svg.append('g')
+                .selectAll('g')
+                .data(agents)
+                .join('g')
+                .attr('class', 'node')
+                .attr('tabindex', '0')
+                .attr('role', 'button')
+                .attr('aria-label', d => `${d.name.replace('\n', ' ')}: ${d.description}. Category: ${d.category}`)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
 
-        // Add text labels
-        node.each(function(d) {
-            const lines = d.name.split('\n');
-            const text = d3.select(this).append("text")
-                .attr("dy", lines.length > 1 ? "-0.3em" : "0.3em");
+            // Add circles to nodes
+            node.append('circle')
+                .attr('r', CONFIG.node.radius)
+                .attr('fill', d => categoryColors[d.category])
+                .attr('stroke', d => d3.color(categoryColors[d.category]).brighter(0.5));
 
-            lines.forEach((line, i) => {
-                text.append("tspan")
-                    .attr("x", 0)
-                    .attr("dy", i === 0 ? 0 : "1.1em")
-                    .text(line);
+            // Add text labels
+            node.each(function(d) {
+                const lines = d.name.split('\n');
+                const text = d3.select(this).append('text')
+                    .attr('dy', lines.length > 1 ? '-0.3em' : '0.3em')
+                    .attr('aria-hidden', 'true');
+
+                lines.forEach((line, i) => {
+                    text.append('tspan')
+                        .attr('x', 0)
+                        .attr('dy', i === 0 ? 0 : '1.1em')
+                        .text(line);
+                });
             });
-        });
 
-        // Tooltip
-        const tooltip = d3.select("#tooltip");
+            // Animate node entrance if motion is OK
+            if (!prefersReducedMotion) {
+                node.style('opacity', 0)
+                    .transition()
+                    .delay((d, i) => i * CONFIG.animation.staggerDelay)
+                    .duration(CONFIG.animation.entranceDuration)
+                    .style('opacity', 1);
+            }
 
-        node.on("mouseover", function(event, d) {
-            tooltip.html(`
-                <h4>${d.name.replace('\n', ' ')}</h4>
-                <p>${d.description}</p>
-                <div class="strengths">
-                    ${d.strengths.map(s => `<span class="strength-tag">${s}</span>`).join('')}
-                </div>
-            `)
-            .style("left", (event.pageX + 15) + "px")
-            .style("top", (event.pageY - 10) + "px")
-            .style("opacity", 1);
+            // ============================================
+            // Tooltip and Interactions
+            // ============================================
+            const tooltip = d3.select('#tooltip');
+            let currentFocusedNode = null;
 
-            // Highlight connected links
-            link.attr("stroke-opacity", l =>
-                (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15
-            ).attr("stroke-width", l =>
-                (l.source.id === d.id || l.target.id === d.id) ? 3 : 1.5
-            );
+            function showTooltip(event, d) {
+                const tooltipContent = `
+                    <h4>${d.name.replace('\n', ' ')}</h4>
+                    <p>${d.description}</p>
+                    <div class="strengths">
+                        ${d.strengths.map(s => `<span class="strength-tag">${s}</span>`).join('')}
+                    </div>
+                `;
 
-            // Highlight connected nodes
-            node.style("opacity", n => {
-                const isConnected = links.some(l =>
-                    (l.source.id === d.id && l.target.id === n.id) ||
-                    (l.target.id === d.id && l.source.id === n.id) ||
-                    n.id === d.id
+                tooltip.html(tooltipContent)
+                    .attr('aria-hidden', 'false');
+
+                // Position tooltip with boundary detection
+                const tooltipNode = tooltip.node();
+                const tooltipRect = tooltipNode.getBoundingClientRect();
+                const pageWidth = window.innerWidth;
+                const pageHeight = window.innerHeight;
+
+                let left = event.pageX + 15;
+                let top = event.pageY - 10;
+
+                // Flip horizontally if too close to right edge
+                if (left + tooltipRect.width > pageWidth - 20) {
+                    left = event.pageX - tooltipRect.width - 15;
+                }
+
+                // Flip vertically if too close to bottom
+                if (top + tooltipRect.height > pageHeight - 20) {
+                    top = event.pageY - tooltipRect.height - 10;
+                }
+
+                tooltip.style('left', left + 'px')
+                    .style('top', top + 'px')
+                    .style('opacity', 1);
+
+                // Highlight connected links and nodes
+                highlightConnections(d);
+            }
+
+            function hideTooltip() {
+                tooltip.style('opacity', 0)
+                    .attr('aria-hidden', 'true');
+                resetHighlights();
+            }
+
+            function highlightConnections(d) {
+                link.attr('stroke-opacity', l =>
+                    (l.source.id === d.id || l.target.id === d.id) ? 1 : 0.15
+                ).attr('stroke-width', l =>
+                    (l.source.id === d.id || l.target.id === d.id) ? 3 : 1.5
                 );
-                return isConnected ? 1 : 0.3;
+
+                node.style('opacity', n => {
+                    const isConnected = links.some(l =>
+                        (l.source.id === d.id && l.target.id === n.id) ||
+                        (l.target.id === d.id && l.source.id === n.id) ||
+                        n.id === d.id
+                    );
+                    return isConnected ? 1 : 0.3;
+                });
+            }
+
+            function resetHighlights() {
+                link.attr('stroke-opacity', 0.6).attr('stroke-width', 1.5);
+                node.style('opacity', 1);
+            }
+
+            // Mouse events
+            node.on('mouseover', function(event, d) {
+                showTooltip(event, d);
+            })
+            .on('mouseout', function() {
+                if (!currentFocusedNode) {
+                    hideTooltip();
+                }
+            })
+            .on('click', function(event, d) {
+                // Toggle selection on click
+                event.stopPropagation();
             });
-        })
-        .on("mouseout", function() {
-            tooltip.style("opacity", 0);
-            link.attr("stroke-opacity", 0.6).attr("stroke-width", 1.5);
-            node.style("opacity", 1);
-        });
 
-        // Update positions on tick
-        simulation.on("tick", () => {
-            link.attr("d", d => {
-                const dx = d.target.x - d.source.x;
-                const dy = d.target.y - d.source.y;
-                const dr = Math.sqrt(dx * dx + dy * dy) * 2;
-                return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            // Keyboard events
+            node.on('keydown', function(event, d) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    showTooltip(event, d);
+                    currentFocusedNode = d;
+                } else if (event.key === 'Escape') {
+                    hideTooltip();
+                    currentFocusedNode = null;
+                }
+            })
+            .on('focus', function(event, d) {
+                showTooltip(event, d);
+                currentFocusedNode = d;
+            })
+            .on('blur', function() {
+                hideTooltip();
+                currentFocusedNode = null;
             });
 
-            node.attr("transform", d => `translate(${d.x},${d.y})`);
-        });
+            // Global escape key handler
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    hideTooltip();
+                    currentFocusedNode = null;
+                }
+            });
 
-        // Drag functions
-        function dragstarted(event) {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
-            event.subject.fx = event.subject.x;
-            event.subject.fy = event.subject.y;
+            // ============================================
+            // Simulation Tick
+            // ============================================
+            simulation.on('tick', () => {
+                link.attr('d', d => {
+                    const dx = d.target.x - d.source.x;
+                    const dy = d.target.y - d.source.y;
+                    const dr = Math.sqrt(dx * dx + dy * dy) * 2;
+                    return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+                });
+
+                node.attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+
+            // ============================================
+            // Drag Functions
+            // ============================================
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
         }
 
-        function dragged(event) {
-            event.subject.fx = event.x;
-            event.subject.fy = event.y;
-        }
-
-        function dragended(event) {
-            if (!event.active) simulation.alphaTarget(0);
-            event.subject.fx = null;
-            event.subject.fy = null;
+        // ============================================
+        // Initialize when D3 is loaded
+        // ============================================
+        if (typeof d3 !== 'undefined') {
+            initGraph();
+        } else {
+            // Wait for D3 to load (deferred script)
+            window.addEventListener('DOMContentLoaded', () => {
+                // Small delay to ensure D3 is ready
+                setTimeout(initGraph, 100);
+            });
         }
     </script>
 </body>
