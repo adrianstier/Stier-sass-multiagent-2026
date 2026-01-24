@@ -76,6 +76,14 @@ ROLE_QUEUES = {
     "cleanup_agent": "q_cleanup",
     "data_scientist": "q_ds",
     "design_reviewer": "q_dr",
+    # Design & Creativity Cluster
+    "creative_director": "q_cd",
+    "visual_designer": "q_vd",
+    "motion_designer": "q_md",
+    "brand_strategist": "q_bs",
+    "design_systems_architect": "q_dsa",
+    "content_designer": "q_cont",
+    "illustration_specialist": "q_illus",
 }
 
 # All queues for Celery configuration
@@ -97,4 +105,12 @@ ROLE_DESCRIPTIONS = {
     "cleanup_agent": "Repository hygiene, dead code removal, AI artifact cleanup",
     "data_scientist": "Data analysis, ML pipelines, feature engineering, model design",
     "design_reviewer": "Design quality gate - UI/UX consistency, accessibility, responsive behavior",
+    # Design & Creativity Cluster
+    "creative_director": "Final creative authority - beauty scoring, distinctiveness, craft quality gate",
+    "visual_designer": "Typography systems, color palettes, spacing, shadows, visual hierarchy",
+    "motion_designer": "Animation systems, micro-interactions, transitions, motion tokens",
+    "brand_strategist": "Brand identity, positioning, personality, voice framework, experience principles",
+    "design_systems_architect": "Token architecture, component libraries, theming, design system codification",
+    "content_designer": "Microcopy, UX writing, error messages, empty states, product voice",
+    "illustration_specialist": "Custom iconography, spot illustrations, visual assets, brand graphics",
 }

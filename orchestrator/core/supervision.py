@@ -33,6 +33,11 @@ SUPERVISION_HIERARCHY = {
     "project_manager": ["business_analyst", "ux_engineer"],
     "code_reviewer": ["backend_engineer", "frontend_engineer"],
     "security_reviewer": ["backend_engineer", "tech_lead"],
+    # Design & Creativity Cluster
+    "creative_director": [
+        "visual_designer", "motion_designer", "brand_strategist",
+        "design_systems_architect", "content_designer", "illustration_specialist",
+    ],
 }
 
 # Inverse mapping for quick lookup

@@ -546,6 +546,133 @@ Structure your response with:
 - **Gate Decision: APPROVED or REJECTED**"""
 
 
+# =============================================================================
+# DESIGN & CREATIVITY CLUSTER
+# =============================================================================
+
+
+class CreativeDirectorAgent(BaseAgent):
+    """Creative Director: Final creative authority and beauty quality gate."""
+
+    role = "creative_director"
+    role_description = "Elite Creative Director with 15+ years leading design for world-class SaaS products"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("11.creative-director-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are an elite Creative Director. You are the final creative authority
+that determines whether work is beautiful enough to ship. You score on distinctiveness,
+emotional resonance, visual craft, systemic coherence, motion & life, content & voice,
+and innovation. Minimum shipping score: 7.5/10 weighted average.
+
+## CRITICAL: Gate Decision
+You MUST explicitly state: APPROVED or REJECTED at the end of your review."""
+
+
+class VisualDesignerAgent(BaseAgent):
+    """Visual Designer: Color, typography, layout, and visual systems."""
+
+    role = "visual_designer"
+    role_description = "Senior Visual Designer specializing in typography, color systems, and visual hierarchy for premium SaaS"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("12.visual-designer-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a senior Visual Designer. You establish the visual language
+including typography systems, color palettes, spacing, shadows, and layout principles.
+You never use generic fonts or Tailwind defaults. You create distinctive visual systems
+that could only belong to THIS product."""
+
+
+class MotionDesignerAgent(BaseAgent):
+    """Motion Designer: Animations, transitions, and micro-interactions."""
+
+    role = "motion_designer"
+    role_description = "Senior Motion Designer specializing in animation systems for premium digital products"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("13.motion-designer-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a senior Motion Designer. You create purposeful animation systems
+that make interfaces feel alive. Every animation serves one of: orient, focus, connect,
+feedback, or delight. You always respect prefers-reduced-motion and only animate
+GPU-accelerated properties (transform, opacity)."""
+
+
+class BrandStrategistAgent(BaseAgent):
+    """Brand Strategist: Brand identity, positioning, personality, and voice."""
+
+    role = "brand_strategist"
+    role_description = "Senior Brand Strategist with 12+ years building iconic SaaS brands"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("14.brand-strategist-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a senior Brand Strategist. You establish the strategic brand
+foundation including purpose, positioning, personality traits, voice framework,
+experience principles, and competitive differentiation. Your work informs all
+downstream creative decisions."""
+
+
+class DesignSystemsArchitectAgent(BaseAgent):
+    """Design Systems Architect: Component libraries, tokens, and scalable patterns."""
+
+    role = "design_systems_architect"
+    role_description = "Senior Design Systems Architect specializing in token systems and component libraries for scaling SaaS"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("15.design-systems-architect-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a senior Design Systems Architect. You encode creative decisions
+into scalable, maintainable token and component architectures using a three-tier system:
+primitives (raw values), aliases (semantic meaning), and component tokens.
+You specify every component with states, variants, accessibility, and motion."""
+
+
+class ContentDesignerAgent(BaseAgent):
+    """Content Designer: Microcopy, messaging, tone, and UX writing."""
+
+    role = "content_designer"
+    role_description = "Senior Content Designer (UX Writer) specializing in interface copy for premium SaaS products"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("16.content-designer-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a senior Content Designer. You craft every word inside the product:
+button labels, error messages, empty states, tooltips, confirmations, and loading states.
+You never use 'Submit', 'Click here', or generic copy. Every word is a design decision
+that guides, reassures, and occasionally delights."""
+
+
+class IllustrationSpecialistAgent(BaseAgent):
+    """Illustration Specialist: Custom graphics, iconography, and visual assets."""
+
+    role = "illustration_specialist"
+    role_description = "Senior Illustration Specialist and Iconographer creating custom visual languages for digital products"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("17.illustration-specialist-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a senior Illustration Specialist. You create custom icon systems,
+spot illustrations, and visual assets that give the product its unique visual fingerprint.
+You never use generic illustration libraries. You design on consistent grids with
+consistent stroke weights, in a style that could only belong to THIS product."""
+
+
 # Agent registry for easy lookup
 AGENT_REGISTRY = {
     "business_analyst": BusinessAnalystAgent,
@@ -560,6 +687,14 @@ AGENT_REGISTRY = {
     "cleanup_agent": CleanupAgent,
     "data_scientist": DataScientistAgent,
     "design_reviewer": DesignReviewerAgent,
+    # Design & Creativity Cluster
+    "creative_director": CreativeDirectorAgent,
+    "visual_designer": VisualDesignerAgent,
+    "motion_designer": MotionDesignerAgent,
+    "brand_strategist": BrandStrategistAgent,
+    "design_systems_architect": DesignSystemsArchitectAgent,
+    "content_designer": ContentDesignerAgent,
+    "illustration_specialist": IllustrationSpecialistAgent,
 }
 
 

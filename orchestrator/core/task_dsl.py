@@ -406,6 +406,199 @@ def create_frontend_workflow() -> WorkflowPlan:
     return plan
 
 
+def create_design_creativity_workflow() -> WorkflowPlan:
+    """Create a full design creativity workflow for SaaS beauty enhancement.
+
+    Coordinates the complete design creativity cluster:
+    1. Brand Strategist establishes identity foundation
+    2. Visual Designer + Illustration Specialist develop visual language (parallel)
+    3. Motion Designer + Content Designer add kinetic and verbal layers (parallel)
+    4. Design Systems Architect codifies into tokens/components
+    5. Creative Director conducts final beauty assessment (quality gate)
+
+    This is the comprehensive workflow for establishing or overhauling
+    a product's creative identity and visual system.
+    """
+    plan = WorkflowPlan()
+
+    # Phase 1: Brand Foundation
+    plan.add_task(TaskSpec(
+        task_type="brand_strategy",
+        assigned_role="brand_strategist",
+        description="Establish brand purpose, positioning, personality, voice framework, and experience principles",
+        expected_artifacts=["brand_strategy", "brand_personality", "voice_framework"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=100,
+    ))
+
+    # Phase 2a: Visual Design (parallel with 2b)
+    plan.add_task(TaskSpec(
+        task_type="visual_design",
+        assigned_role="visual_designer",
+        description="Create typography system, color palette, spacing, shadows, and layout principles",
+        dependencies=["brand_strategy"],
+        expected_artifacts=["visual_design_spec", "type_scale", "color_system"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=90,
+    ))
+
+    # Phase 2b: Illustration System (parallel with 2a)
+    plan.add_task(TaskSpec(
+        task_type="illustration_system",
+        assigned_role="illustration_specialist",
+        description="Create custom icon system, spot illustrations, and visual asset language",
+        dependencies=["brand_strategy"],
+        expected_artifacts=["illustration_system", "icon_inventory", "spot_illustrations"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=90,
+    ))
+
+    # Phase 3a: Motion Design (parallel with 3b)
+    plan.add_task(TaskSpec(
+        task_type="motion_design",
+        assigned_role="motion_designer",
+        description="Create animation system with motion tokens, micro-interactions, and transition specs",
+        dependencies=["brand_strategy", "visual_design"],
+        expected_artifacts=["motion_design_spec", "motion_tokens", "animation_inventory"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    # Phase 3b: Content Design (parallel with 3a)
+    plan.add_task(TaskSpec(
+        task_type="content_design",
+        assigned_role="content_designer",
+        description="Craft all product copy: navigation, buttons, errors, empty states, tooltips, confirmations",
+        dependencies=["brand_strategy", "visual_design"],
+        expected_artifacts=["content_design_spec", "copy_inventory", "content_patterns"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    # Phase 4: Design System Codification
+    plan.add_task(TaskSpec(
+        task_type="design_system",
+        assigned_role="design_systems_architect",
+        description="Synthesize all creative specs into scalable token architecture and component library",
+        dependencies=["visual_design", "motion_design", "content_design", "illustration_system"],
+        expected_artifacts=["design_system_spec", "token_architecture", "component_library"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=70,
+    ))
+
+    # Phase 5: Creative Director Review (Quality Gate)
+    plan.add_task(TaskSpec(
+        task_type="creative_review",
+        assigned_role="creative_director",
+        description="Final creative assessment: score distinctiveness, emotional resonance, craft, coherence, motion, content, innovation",
+        dependencies=["design_system"],
+        expected_artifacts=["creative_review", "beauty_score"],
+        validation_method=ValidationMethod.GATE_APPROVAL,
+        is_gate=True,
+        gate_blocks=["frontend_development"],
+        priority=60,
+    ))
+
+    plan.success_criteria = [
+        "Beauty score >= 7.5/10 weighted average",
+        "All creative dimensions score >= 7/10 minimum",
+        "Creative Director APPROVED gate decision",
+        "Design system is complete with dark mode",
+        "Motion system includes reduced-motion fallbacks",
+        "Content design covers all product contexts",
+        "Illustration system is distinctive and consistent",
+    ]
+
+    return plan
+
+
+def create_beauty_iteration_workflow() -> WorkflowPlan:
+    """Create a focused beauty iteration workflow for existing SaaS products.
+
+    Lighter than the full creativity workflow -- focuses on visual and motion
+    improvements using the creative cluster, without full brand strategy.
+
+    Use when: Product exists but needs beauty polish, not brand overhaul.
+    Flow: Visual audit → Targeted improvements → Creative Director gate.
+    """
+    plan = WorkflowPlan()
+
+    # Phase 1: Visual Audit (parallel assessments)
+    plan.add_task(TaskSpec(
+        task_type="visual_audit",
+        assigned_role="visual_designer",
+        description="Audit current visual design: typography, color, spacing, identify top improvements",
+        expected_artifacts=["visual_audit_report", "improvement_priorities"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=100,
+    ))
+
+    plan.add_task(TaskSpec(
+        task_type="motion_audit",
+        assigned_role="motion_designer",
+        description="Audit current motion design: identify missing animations, assess timing, find opportunities",
+        expected_artifacts=["motion_audit_report", "motion_opportunities"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=100,
+    ))
+
+    # Phase 2: Targeted improvements (parallel)
+    plan.add_task(TaskSpec(
+        task_type="visual_improvements",
+        assigned_role="visual_designer",
+        description="Specify visual improvements: new type scale, refined palette, better shadows/spacing",
+        dependencies=["visual_audit"],
+        expected_artifacts=["visual_improvement_spec"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    plan.add_task(TaskSpec(
+        task_type="motion_improvements",
+        assigned_role="motion_designer",
+        description="Specify motion improvements: add micro-interactions, refine timing, add stagger reveals",
+        dependencies=["motion_audit"],
+        expected_artifacts=["motion_improvement_spec"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    plan.add_task(TaskSpec(
+        task_type="content_improvements",
+        assigned_role="content_designer",
+        description="Audit and improve product copy: buttons, errors, empty states, loading messages",
+        dependencies=["visual_audit"],
+        expected_artifacts=["content_improvement_spec"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=80,
+    ))
+
+    # Phase 3: System Update
+    plan.add_task(TaskSpec(
+        task_type="system_update",
+        assigned_role="design_systems_architect",
+        description="Update design tokens and component specs based on improvement specifications",
+        dependencies=["visual_improvements", "motion_improvements", "content_improvements"],
+        expected_artifacts=["updated_design_tokens", "updated_component_specs"],
+        validation_method=ValidationMethod.ARTIFACT_EXISTS,
+        priority=70,
+    ))
+
+    # Phase 4: Creative Review (Quality Gate)
+    plan.add_task(TaskSpec(
+        task_type="beauty_gate",
+        assigned_role="creative_director",
+        description="Verify improvements meet beauty standards (score >= 7.5/10)",
+        dependencies=["system_update"],
+        expected_artifacts=["beauty_review", "beauty_score"],
+        validation_method=ValidationMethod.GATE_APPROVAL,
+        is_gate=True,
+        priority=60,
+    ))
+
+    return plan
+
+
 def create_design_iteration_workflow() -> WorkflowPlan:
     """Create a quick design iteration workflow for improving existing frontends.
 

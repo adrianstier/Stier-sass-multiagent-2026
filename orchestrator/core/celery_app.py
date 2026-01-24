@@ -62,6 +62,14 @@ celery_app.conf.update(
         "orchestrator.agents.frontend_engineer.*": {"queue": "q_fe"},
         "orchestrator.agents.code_reviewer.*": {"queue": "q_cr"},
         "orchestrator.agents.security_reviewer.*": {"queue": "q_sec"},
+        # Design & Creativity Cluster
+        "orchestrator.agents.creative_director.*": {"queue": "q_cd"},
+        "orchestrator.agents.visual_designer.*": {"queue": "q_vd"},
+        "orchestrator.agents.motion_designer.*": {"queue": "q_md"},
+        "orchestrator.agents.brand_strategist.*": {"queue": "q_bs"},
+        "orchestrator.agents.design_systems_architect.*": {"queue": "q_dsa"},
+        "orchestrator.agents.content_designer.*": {"queue": "q_cont"},
+        "orchestrator.agents.illustration_specialist.*": {"queue": "q_illus"},
     },
 
     # ==========================================================================
