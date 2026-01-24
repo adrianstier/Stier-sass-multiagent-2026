@@ -46,6 +46,7 @@ class WorkflowType(str, Enum):
     FRONTEND_DESIGN = "frontend_design"       # Visual/UX focus
     FULL_STACK = "full_stack"                 # End-to-end feature
     DESIGN_ITERATION = "design_iteration"     # Quick design refinement
+    DESIGN_CREATIVITY = "design_creativity"   # Full creative overhaul (7 agents)
     BUG_FIX = "bug_fix"                       # Targeted fix
     PERFORMANCE = "performance"                # Optimization focus
     SECURITY_REVIEW = "security_review"       # Security audit
@@ -161,6 +162,63 @@ AGENT_GRAPH = {
         categories=[ChangeCategory.CONTENT],
         depends_on=["backend", "frontend"],
         enhances=[]
+    ),
+    # Design & Creativity Cluster
+    "brand_strategist": AgentCapability(
+        name="Brand Strategist",
+        role_id="brand_strategist",
+        strengths=["brand identity", "positioning", "personality", "voice framework", "experience principles"],
+        categories=[ChangeCategory.VISUAL_DESIGN, ChangeCategory.CONTENT],
+        depends_on=[],
+        enhances=["visual_designer", "motion_designer", "content_designer", "illustration_specialist"]
+    ),
+    "visual_designer": AgentCapability(
+        name="Visual Designer",
+        role_id="visual_designer",
+        strengths=["typography", "color systems", "spacing", "shadows", "visual hierarchy", "dark mode"],
+        categories=[ChangeCategory.VISUAL_DESIGN],
+        depends_on=["brand_strategist"],
+        enhances=["motion_designer", "design_systems_architect", "frontend", "creative_director"]
+    ),
+    "motion_designer": AgentCapability(
+        name="Motion Designer",
+        role_id="motion_designer",
+        strengths=["animations", "transitions", "micro-interactions", "motion tokens", "reduced-motion"],
+        categories=[ChangeCategory.ANIMATION],
+        depends_on=["visual_designer", "brand_strategist"],
+        enhances=["design_systems_architect", "frontend", "creative_director"]
+    ),
+    "content_designer": AgentCapability(
+        name="Content Designer",
+        role_id="content_designer",
+        strengths=["microcopy", "error messages", "empty states", "button labels", "UX writing", "tone"],
+        categories=[ChangeCategory.CONTENT, ChangeCategory.UX_INTERACTION],
+        depends_on=["brand_strategist"],
+        enhances=["design_systems_architect", "frontend", "creative_director"]
+    ),
+    "illustration_specialist": AgentCapability(
+        name="Illustration Specialist",
+        role_id="illustration_specialist",
+        strengths=["icons", "spot illustrations", "visual assets", "SVG", "icon grid", "custom graphics"],
+        categories=[ChangeCategory.VISUAL_DESIGN],
+        depends_on=["brand_strategist", "visual_designer"],
+        enhances=["design_systems_architect", "frontend", "creative_director"]
+    ),
+    "design_systems_architect": AgentCapability(
+        name="Design Systems Architect",
+        role_id="design_systems_architect",
+        strengths=["design tokens", "component specs", "theming", "dark mode", "token architecture"],
+        categories=[ChangeCategory.VISUAL_DESIGN, ChangeCategory.ARCHITECTURE],
+        depends_on=["visual_designer", "motion_designer", "content_designer", "illustration_specialist"],
+        enhances=["frontend", "creative_director"]
+    ),
+    "creative_director": AgentCapability(
+        name="Creative Director",
+        role_id="creative_director",
+        strengths=["beauty assessment", "distinctiveness", "brand coherence", "creative vision", "quality gate"],
+        categories=[ChangeCategory.VISUAL_DESIGN, ChangeCategory.ANIMATION, ChangeCategory.CONTENT],
+        depends_on=["visual_designer", "motion_designer", "content_designer", "illustration_specialist", "design_systems_architect"],
+        enhances=["visual_designer", "motion_designer", "frontend"]
     ),
 }
 
@@ -354,6 +412,17 @@ class PromptBuilder:
     def _select_workflow(self, categories: List[ChangeCategory], agents: List[str]) -> WorkflowType:
         """Select the best workflow type."""
         cat_set = set(categories)
+        agent_set = set(agents)
+
+        # Creativity cluster detection - if creative agents are selected
+        creativity_agents = {"brand_strategist", "visual_designer", "motion_designer",
+                           "content_designer", "illustration_specialist", "design_systems_architect",
+                           "creative_director"}
+        if agent_set & creativity_agents:
+            if len(agent_set & creativity_agents) >= 3:
+                return WorkflowType.DESIGN_CREATIVITY
+            # Fewer creative agents = design iteration
+            return WorkflowType.DESIGN_ITERATION
 
         # Security takes priority
         if ChangeCategory.SECURITY in cat_set:

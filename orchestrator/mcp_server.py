@@ -61,7 +61,7 @@ async def handle_request(request: dict) -> dict:
                 "tools": [
                     {
                         "name": "orchestrate_task",
-                        "description": "[USES CLAUDE MAX] Orchestrate a multi-agent workflow. Returns a complete execution plan with Task-ready prompts for Claude Code to run. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, and more. No separate API credits needed.",
+                        "description": "[USES CLAUDE MAX] Orchestrate a multi-agent workflow. Returns a complete execution plan with Task-ready prompts for Claude Code to run. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, Creative Director, Visual Designer, Motion Designer, Brand Strategist, Content Designer, Illustration Specialist, Design Systems Architect, and more. No separate API credits needed.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -134,7 +134,7 @@ async def handle_request(request: dict) -> dict:
                     },
                     {
                         "name": "get_workflow_plan",
-                        "description": "[USES CLAUDE MAX] Get a multi-agent workflow plan that Claude Code executes directly. No separate API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, and more.",
+                        "description": "[USES CLAUDE MAX] Get a multi-agent workflow plan that Claude Code executes directly. No separate API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, Creative Director, Visual Designer, Motion Designer, Brand Strategist, Content Designer, Illustration Specialist, Design Systems Architect, and more.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -163,7 +163,7 @@ async def handle_request(request: dict) -> dict:
                             "properties": {
                                 "agent": {
                                     "type": "string",
-                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist"
+                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, graphic_designer, design_reviewer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist"
                                 },
                                 "task": {
                                     "type": "string",
@@ -325,6 +325,51 @@ async def handle_request(request: dict) -> dict:
                                 }
                             },
                             "required": ["url", "codebase_path"]
+                        }
+                    },
+                    {
+                        "name": "design_creativity_review",
+                        "description": "[USES CLAUDE MAX] Run a comprehensive design creativity workflow with 7 specialized agents: Brand Strategist, Visual Designer, Motion Designer, Content Designer, Illustration Specialist, Design Systems Architect, and Creative Director (quality gate). Improves SaaS product beauty and distinctiveness.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "product_name": {
+                                    "type": "string",
+                                    "description": "Name of the SaaS product"
+                                },
+                                "product_description": {
+                                    "type": "string",
+                                    "description": "Brief description of what the product does"
+                                },
+                                "target_audience": {
+                                    "type": "string",
+                                    "description": "Who uses this product (mindset, not demographics)"
+                                },
+                                "existing_url": {
+                                    "type": "string",
+                                    "description": "Optional: Live URL of existing product to review"
+                                },
+                                "codebase_path": {
+                                    "type": "string",
+                                    "description": "Optional: Path to frontend codebase"
+                                },
+                                "competitors": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "Optional: Competitor product names or URLs"
+                                },
+                                "tech_stack": {
+                                    "type": "string",
+                                    "description": "Optional: Frontend tech stack (default: React/TypeScript)"
+                                },
+                                "workflow_type": {
+                                    "type": "string",
+                                    "enum": ["full_creative", "beauty_iteration"],
+                                    "default": "full_creative",
+                                    "description": "full_creative = complete brand-to-gate workflow, beauty_iteration = quick polish of existing product"
+                                }
+                            },
+                            "required": ["product_name", "product_description", "target_audience"]
                         }
                     },
                     # Add data science tools
@@ -656,7 +701,7 @@ prompt = next_agent_prompt + f"\\n\\n## Previous Agent Results\\n{previous_resul
         step_num = 1
 
         # Frontend agents that should use Playwright
-        frontend_agents = ["frontend", "ux_engineer", "design_reviewer", "graphic_designer"]
+        frontend_agents = ["frontend", "ux_engineer", "design_reviewer", "graphic_designer", "creative_director", "visual_designer"]
 
         for phase in agent_sequence:
             phase_steps = []
@@ -817,7 +862,7 @@ They will:
         agent_config = AGENTS[agent_type]
 
         # Determine if this is a frontend-related agent that should use Playwright
-        frontend_agents = ["frontend", "ux_engineer", "design_reviewer", "graphic_designer"]
+        frontend_agents = ["frontend", "ux_engineer", "design_reviewer", "graphic_designer", "creative_director", "visual_designer"]
         is_frontend_agent = agent_type in frontend_agents
 
         # Playwright instructions for frontend agents
@@ -1291,6 +1336,348 @@ SHIP IT / NEEDS WORK / BLOCKED
                 "MEDIUM": "Should fix in follow-up PR - minor UX improvements, code refactoring opportunities",
                 "NITPICK": "Optional polish - minor visual tweaks, preference-based suggestions"
             }
+        }
+
+    elif tool_name == "design_creativity_review":
+        # Import the design creativity workflow
+        from orchestrator.workflows.design_creativity import get_creativity_workflow_prompts, CREATIVITY_WORKFLOW_DEFINITION
+
+        product_name = args["product_name"]
+        product_description = args["product_description"]
+        target_audience = args["target_audience"]
+        existing_url = args.get("existing_url")
+        codebase_path = args.get("codebase_path")
+        competitors = args.get("competitors")
+        tech_stack = args.get("tech_stack")
+        workflow_type = args.get("workflow_type", "full_creative")
+
+        # Handle relative paths
+        if codebase_path and not os.path.isabs(codebase_path):
+            codebase_path = os.path.abspath(codebase_path)
+
+        # Get all agent prompts
+        prompts = get_creativity_workflow_prompts(
+            product_name=product_name,
+            product_description=product_description,
+            target_audience=target_audience,
+            existing_url=existing_url,
+            codebase_path=codebase_path,
+            competitors=competitors,
+            tech_stack=tech_stack,
+        )
+
+        if workflow_type == "beauty_iteration":
+            # Lighter workflow for existing products
+            return {
+                "workflow": "Beauty Iteration",
+                "product_name": product_name,
+                "workflow_type": "beauty_iteration",
+                "phases": [
+                    {
+                        "phase": 1,
+                        "name": "Visual & Motion Audit",
+                        "parallel": True,
+                        "description": "Visual Designer and Motion Designer audit the current state",
+                        "agents": [
+                            {
+                                "agent": "visual_designer",
+                                "name": "Visual Designer",
+                                "task_prompt": prompts["visual_designer"] + "\n\n## MODE: AUDIT\nAudit the current visual design and identify the top 5 improvements ranked by beauty impact.",
+                                "model": "sonnet",
+                                "focus": "Typography, color, spacing, shadows audit"
+                            },
+                            {
+                                "agent": "motion_designer",
+                                "name": "Motion Designer",
+                                "task_prompt": prompts["motion_designer"] + "\n\n## MODE: AUDIT\nAudit current animations and identify missing/broken motion. Prioritize improvements.",
+                                "model": "sonnet",
+                                "focus": "Animation audit, missing interactions"
+                            }
+                        ]
+                    },
+                    {
+                        "phase": 2,
+                        "name": "Content & Illustration Audit",
+                        "parallel": True,
+                        "description": "Content Designer and Illustration Specialist audit copy and assets",
+                        "agents": [
+                            {
+                                "agent": "content_designer",
+                                "name": "Content Designer",
+                                "task_prompt": prompts["content_designer"] + "\n\n## MODE: AUDIT\nAudit all product copy. Flag generic/bad patterns (Submit, Click here, vague errors). Provide improved alternatives.",
+                                "model": "sonnet",
+                                "focus": "Microcopy audit, error messages, empty states"
+                            },
+                            {
+                                "agent": "illustration_specialist",
+                                "name": "Illustration Specialist",
+                                "task_prompt": prompts["illustration_specialist"] + "\n\n## MODE: AUDIT\nAudit current icons and illustrations. Identify inconsistencies, generic assets, and missing custom graphics.",
+                                "model": "sonnet",
+                                "focus": "Icon consistency, illustration style audit"
+                            }
+                        ]
+                    },
+                    {
+                        "phase": 3,
+                        "name": "System Update",
+                        "parallel": False,
+                        "description": "Design Systems Architect updates tokens based on audit findings",
+                        "agents": [
+                            {
+                                "agent": "design_systems_architect",
+                                "name": "Design Systems Architect",
+                                "task_prompt": prompts["design_systems_architect"] + "\n\n## MODE: UPDATE\nBased on the audit findings from Visual, Motion, Content, and Illustration agents, update the design token architecture.",
+                                "model": "sonnet",
+                                "focus": "Token updates, component spec improvements"
+                            }
+                        ]
+                    },
+                    {
+                        "phase": 4,
+                        "name": "Creative Review (Quality Gate)",
+                        "parallel": False,
+                        "description": "Creative Director assesses whether improvements meet beauty standards",
+                        "agents": [
+                            {
+                                "agent": "creative_director",
+                                "name": "Creative Director",
+                                "task_prompt": prompts["creative_director"],
+                                "model": "sonnet",
+                                "focus": "Beauty gate: score >= 7.5/10, APPROVED/REJECTED",
+                                "is_gate": True
+                            }
+                        ]
+                    }
+                ],
+                "execution_instructions": """
+## Beauty Iteration Workflow - Execution Guide
+
+This is the lighter workflow for polishing existing products.
+
+### Phase 1: Audits (PARALLEL)
+```python
+Task(subagent_type="general-purpose", description="Visual Designer: Audit", prompt=phases[0]["agents"][0]["task_prompt"], model="sonnet")
+Task(subagent_type="general-purpose", description="Motion Designer: Audit", prompt=phases[0]["agents"][1]["task_prompt"], model="sonnet")
+```
+
+### Phase 2: More Audits (PARALLEL, after Phase 1)
+```python
+Task(subagent_type="general-purpose", description="Content Designer: Audit", prompt=phases[1]["agents"][0]["task_prompt"] + context, model="sonnet")
+Task(subagent_type="general-purpose", description="Illustration Specialist: Audit", prompt=phases[1]["agents"][1]["task_prompt"] + context, model="sonnet")
+```
+
+### Phase 3: System Update (after Phase 2)
+```python
+Task(subagent_type="general-purpose", description="Design Systems Architect: Update tokens", prompt=phases[2]["agents"][0]["task_prompt"] + all_audit_findings, model="sonnet")
+```
+
+### Phase 4: Creative Gate (after Phase 3)
+```python
+Task(subagent_type="general-purpose", description="Creative Director: Beauty gate", prompt=phases[3]["agents"][0]["task_prompt"] + all_results, model="sonnet")
+```
+
+If REJECTED, the Creative Director provides specific "Path to Beautiful" direction.
+Re-run relevant agents with feedback, then re-submit for review.
+"""
+            }
+
+        # Full creative workflow
+        return {
+            "workflow": "Design & Creativity Enhancement",
+            "product_name": product_name,
+            "product_description": product_description,
+            "target_audience": target_audience,
+            "workflow_type": "full_creative",
+            "existing_url": existing_url,
+            "codebase_path": codebase_path,
+            "phases": [
+                {
+                    "phase": 1,
+                    "name": "Brand Foundation",
+                    "parallel": False,
+                    "description": "Brand Strategist establishes identity, positioning, personality, and voice",
+                    "agents": [
+                        {
+                            "agent": "brand_strategist",
+                            "name": "Brand Strategist",
+                            "task_prompt": prompts["brand_strategist"],
+                            "model": "sonnet",
+                            "focus": "Purpose, positioning, personality traits, voice framework, experience principles"
+                        }
+                    ]
+                },
+                {
+                    "phase": 2,
+                    "name": "Visual Language Development",
+                    "parallel": True,
+                    "description": "Visual Designer and Illustration Specialist develop the visual language in parallel",
+                    "agents": [
+                        {
+                            "agent": "visual_designer",
+                            "name": "Visual Designer",
+                            "task_prompt": prompts["visual_designer"],
+                            "model": "sonnet",
+                            "focus": "Typography, color system, spacing, shadows, layout principles"
+                        },
+                        {
+                            "agent": "illustration_specialist",
+                            "name": "Illustration Specialist",
+                            "task_prompt": prompts["illustration_specialist"],
+                            "model": "sonnet",
+                            "focus": "Icon system, spot illustrations, visual assets, style guide"
+                        }
+                    ]
+                },
+                {
+                    "phase": 3,
+                    "name": "Kinetic & Verbal Layer",
+                    "parallel": True,
+                    "description": "Motion Designer and Content Designer add animation and copy layers",
+                    "agents": [
+                        {
+                            "agent": "motion_designer",
+                            "name": "Motion Designer",
+                            "task_prompt": prompts["motion_designer"],
+                            "model": "sonnet",
+                            "focus": "Motion tokens, micro-interactions, transitions, reduced-motion fallbacks"
+                        },
+                        {
+                            "agent": "content_designer",
+                            "name": "Content Designer",
+                            "task_prompt": prompts["content_designer"],
+                            "model": "sonnet",
+                            "focus": "All product copy: buttons, errors, empty states, loading, tooltips"
+                        }
+                    ]
+                },
+                {
+                    "phase": 4,
+                    "name": "System Codification",
+                    "parallel": False,
+                    "description": "Design Systems Architect encodes everything into tokens and component specs",
+                    "agents": [
+                        {
+                            "agent": "design_systems_architect",
+                            "name": "Design Systems Architect",
+                            "task_prompt": prompts["design_systems_architect"],
+                            "model": "sonnet",
+                            "focus": "Three-tier tokens, component library, theming, dark mode"
+                        }
+                    ]
+                },
+                {
+                    "phase": 5,
+                    "name": "Creative Review (Quality Gate)",
+                    "parallel": False,
+                    "description": "Creative Director scores all work and makes APPROVED/REJECTED gate decision",
+                    "agents": [
+                        {
+                            "agent": "creative_director",
+                            "name": "Creative Director",
+                            "task_prompt": prompts["creative_director"],
+                            "model": "sonnet",
+                            "focus": "Beauty gate: 7 dimensions scored, weighted avg >= 7.5/10",
+                            "is_gate": True
+                        }
+                    ]
+                }
+            ],
+            "execution_instructions": """
+## Design & Creativity Workflow - Execution Guide
+
+### Overview
+This workflow coordinates 7 creative agents to establish or overhaul a product's visual identity.
+Each phase builds on the previous. The Creative Director is the final quality gate.
+
+### Phase 1: Brand Foundation (SEQUENTIAL - Must complete first)
+```python
+result_1 = Task(
+    subagent_type="general-purpose",
+    description="Brand Strategist: Identity foundation",
+    prompt=phases[0]["agents"][0]["task_prompt"],
+    model="sonnet"
+)
+```
+
+### Phase 2: Visual Language (PARALLEL, after Phase 1)
+```python
+Task(
+    subagent_type="general-purpose",
+    description="Visual Designer: Typography & color",
+    prompt=phases[1]["agents"][0]["task_prompt"] + f"\\n\\n## Brand Strategy\\n{result_1}",
+    model="sonnet"
+)
+Task(
+    subagent_type="general-purpose",
+    description="Illustration Specialist: Icons & graphics",
+    prompt=phases[1]["agents"][1]["task_prompt"] + f"\\n\\n## Brand Strategy\\n{result_1}",
+    model="sonnet"
+)
+```
+
+### Phase 3: Kinetic & Verbal (PARALLEL, after Phase 2)
+```python
+Task(
+    subagent_type="general-purpose",
+    description="Motion Designer: Animations",
+    prompt=phases[2]["agents"][0]["task_prompt"] + f"\\n\\n## Context\\n{phase_1_and_2_results}",
+    model="sonnet"
+)
+Task(
+    subagent_type="general-purpose",
+    description="Content Designer: Product copy",
+    prompt=phases[2]["agents"][1]["task_prompt"] + f"\\n\\n## Context\\n{phase_1_and_2_results}",
+    model="sonnet"
+)
+```
+
+### Phase 4: System Codification (SEQUENTIAL, after Phase 3)
+```python
+result_4 = Task(
+    subagent_type="general-purpose",
+    description="Design Systems Architect: Tokens & components",
+    prompt=phases[3]["agents"][0]["task_prompt"] + f"\\n\\n## All Creative Specs\\n{all_previous_results}",
+    model="sonnet"
+)
+```
+
+### Phase 5: Creative Review - Quality Gate (SEQUENTIAL, after Phase 4)
+```python
+final = Task(
+    subagent_type="general-purpose",
+    description="Creative Director: Beauty gate",
+    prompt=phases[4]["agents"][0]["task_prompt"] + f"\\n\\n## All Creative Work\\n{all_results}",
+    model="sonnet"
+)
+```
+
+### If REJECTED:
+The Creative Director's review will include a specific "Path to Beautiful" section.
+Re-run the relevant agents (usually Visual Designer + Motion Designer) with the
+feedback incorporated, then re-submit for Creative Director review.
+
+### Beauty Score Dimensions
+| Dimension | Weight | Minimum |
+|-----------|--------|---------|
+| Distinctiveness | 20% | 7/10 |
+| Emotional Resonance | 20% | 7/10 |
+| Visual Craft | 20% | 8/10 |
+| Systemic Coherence | 15% | 7/10 |
+| Motion & Life | 10% | 7/10 |
+| Content & Voice | 10% | 7/10 |
+| Innovation | 5% | 6/10 |
+
+Weighted average must be >= 7.5/10 for APPROVED.
+""",
+            "creative_agents": [
+                {"id": "brand_strategist", "name": "Brand Strategist", "focus": "Identity & positioning"},
+                {"id": "visual_designer", "name": "Visual Designer", "focus": "Typography, color, layout"},
+                {"id": "motion_designer", "name": "Motion Designer", "focus": "Animation & micro-interactions"},
+                {"id": "content_designer", "name": "Content Designer", "focus": "Microcopy & UX writing"},
+                {"id": "illustration_specialist", "name": "Illustration Specialist", "focus": "Icons & graphics"},
+                {"id": "design_systems_architect", "name": "Design Systems Architect", "focus": "Tokens & components"},
+                {"id": "creative_director", "name": "Creative Director", "focus": "Beauty quality gate"},
+            ]
         }
 
     elif tool_name == "get_compliance_rules":
