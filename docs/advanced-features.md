@@ -74,41 +74,88 @@ CREATE TABLE dead_letter_tasks (
 
 **Module:** `orchestrator/core/context_manager.py`
 
-Intelligent token management to prevent context overflow during long-running agent tasks.
+Intelligent token management to prevent context overflow during long-running agent tasks. **Prevents API 500 errors** from exceeding Claude's 200K token limit.
 
 ### Features
-- Token estimation for messages and artifacts
-- Automatic summarization of large content
-- Sliding window management
-- Semantic code chunking for large files
+- Pre-flight token estimation before every API call
+- Automatic message truncation when approaching limits
+- Error handling with retry logic for context overflow
+- System prompt size validation
+- Token usage logging for monitoring
 
-### Usage
+### Configuration
+
+The following settings control context management (in `core/config.py`):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `context_window_max_tokens` | 180,000 | Max tokens (20K buffer from 200K limit) |
+| `context_warning_threshold` | 0.7 | Warn at 70% usage |
+| `context_critical_threshold` | 0.85 | Truncate at 85% usage |
+| `reserved_output_tokens` | 8,192 | Reserve for response |
+| `max_system_prompt_tokens` | 15,000 | Cap system prompts |
+
+### How It Works
+
+The context management is **automatically enabled** in `delegate.py` and `chat.py`. Before every API call:
+
+1. **Token Estimation**: Calculate total request tokens (system prompt + messages + tools)
+2. **Threshold Check**: If usage exceeds 85%, truncate older messages
+3. **Truncation**: Keep recent messages, add summary note about removed context
+4. **Error Handling**: Catch overflow errors, emergency truncate, retry
+
+### Usage (Standalone)
 
 ```python
-from orchestrator.core import get_context_manager
+from orchestrator.core.context_manager import (
+    estimate_tokens,
+    estimate_request_tokens,
+    truncate_messages_to_fit,
+    check_context_limits,
+)
 
-ctx = get_context_manager(max_tokens=100000)
+# Estimate tokens for a request
+total = estimate_request_tokens(system_prompt, messages, tools)
 
-# Add content to context window
-ctx.add_message(role="user", content=user_input)
-ctx.add_message(role="assistant", content=response)
+# Check if truncation is needed
+estimated, usage_pct, needs_truncation = check_context_limits(
+    system_prompt, messages, tools
+)
 
-# Check if context needs compaction
-if ctx.needs_compaction():
-    summary = await ctx.compact(keep_recent=10)
-
-# Get current context for LLM call
-messages = ctx.get_messages()
+# Manually truncate messages to fit
+if needs_truncation:
+    messages = truncate_messages_to_fit(
+        messages,
+        max_tokens=180000,
+        system_prompt_tokens=estimate_tokens(system_prompt),
+        tool_tokens=len(tools) * 120,
+        reserved_output_tokens=8192
+    )
 ```
 
-### Summarization Strategies
+### Token Estimation
 
-| Content Type | Strategy |
-|-------------|----------|
-| Code | Extract signatures, docstrings, key logic |
-| Requirements | Bullet point extraction |
-| Conversation | Key decisions and outcomes |
-| Large files | Semantic chunking with overlap |
+| Content Type | Chars/Token | Notes |
+|-------------|-------------|-------|
+| English text | ~4.0 | General prose |
+| Code | ~3.5 | More symbols/keywords |
+| Tool definitions | ~120/tool | JSON schema overhead |
+| Message overhead | ~10/message | Role/structure |
+
+### Monitoring
+
+Token usage is logged for every API call:
+
+```
+INFO: API call: iteration=3, input_tokens=45000, output_tokens=2000, cumulative=47000, messages=12
+```
+
+Look for warnings about truncation:
+
+```
+WARNING: Request at 162000 tokens (90.0% of limit), truncating messages
+WARNING: messages_truncated removed_count=5 kept_count=7 tokens_before=155000 tokens_after=95000
+```
 
 ---
 
@@ -663,9 +710,12 @@ class Settings:
     DLQ_RETENTION_DAYS: int = 30
     DLQ_AUTO_REPLAY_ENABLED: bool = False
 
-    # Context Management
-    MAX_CONTEXT_TOKENS: int = 100000
-    CONTEXT_COMPACTION_THRESHOLD: float = 0.8
+    # Context Management (prevents API 500 errors)
+    context_window_max_tokens: int = 180000  # 20K buffer from 200K limit
+    context_warning_threshold: float = 0.7   # Warn at 70%
+    context_critical_threshold: float = 0.85  # Truncate at 85%
+    reserved_output_tokens: int = 8192       # Reserve for response
+    max_system_prompt_tokens: int = 15000    # Cap system prompts
 
     # Checkpoints
     AUTO_CHECKPOINT_INTERVAL: int = 300  # seconds
