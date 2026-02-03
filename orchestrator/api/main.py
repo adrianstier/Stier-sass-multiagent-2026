@@ -9,6 +9,7 @@ Production-ready with:
 - Error handling
 """
 
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -98,11 +99,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
 
-        # Content Security Policy - adjust based on your needs
+        # Content Security Policy - strict mode for API (no inline styles needed)
+        # For UIs that need inline styles, override CSP_ALLOW_UNSAFE_INLINE=true
+        csp_style_src = "'self' 'unsafe-inline'" if os.getenv("CSP_ALLOW_UNSAFE_INLINE", "false").lower() == "true" else "'self'"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "
-            "style-src 'self' 'unsafe-inline'; "
+            f"style-src {csp_style_src}; "
             "img-src 'self' data:; "
             "font-src 'self'; "
             "frame-ancestors 'none'; "
@@ -125,6 +128,10 @@ if settings.rate_limit_enabled:
     app.add_middleware(RateLimitMiddleware, use_redis=True)
 
 # CORS middleware
+# Note: CSRF protection is not needed for pure JWT-based APIs since:
+# 1. JWT tokens are sent via Authorization header, not cookies
+# 2. CORS prevents cross-origin requests from reading responses
+# If adding cookie-based sessions, implement CSRF middleware (e.g., starlette_csrf)
 origins = settings.cors_origins.split(",") if settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,

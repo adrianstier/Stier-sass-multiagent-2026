@@ -119,7 +119,10 @@ class OrchestratorAgent:
             task_id_map = {t.task_type: str(t.id) for t in tasks}
 
             for task_spec in plan.tasks:
-                task = next(t for t in tasks if t.task_type == task_spec.task_type)
+                task = next((t for t in tasks if t.task_type == task_spec.task_type), None)
+                if task is None:
+                    logger.warning(f"Task not found for type: {task_spec.task_type}")
+                    continue
                 task.dependencies = [
                     task_id_map[dep] for dep in task_spec.dependencies
                     if dep in task_id_map
@@ -217,8 +220,12 @@ class OrchestratorAgent:
             elif task.assigned_role == "security_reviewer":
                 gate_failed = run.security_review_status == GateStatus.FAILED
             elif task.assigned_role == "design_reviewer":
-                # Design review gate (if we add it to the model)
-                gate_failed = task.status == TaskStatus.FAILED
+                # Design review gate - check run.design_review_status if available,
+                # otherwise fall back to task status
+                if hasattr(run, 'design_review_status') and run.design_review_status is not None:
+                    gate_failed = run.design_review_status == GateStatus.FAILED
+                else:
+                    gate_failed = task.status == TaskStatus.FAILED
 
             if gate_failed:
                 # Block all tasks in gate_blocks

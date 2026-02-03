@@ -19,10 +19,19 @@ Usage:
 
 import asyncio
 import json
+import logging
 import sys
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List
+
+# Set up logging to stderr (MCP uses stdout for JSON-RPC)
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+logger = logging.getLogger("orchestrator.mcp")
 
 # In-memory workflow state (persists for session)
 WORKFLOW_STATE: Dict[str, dict] = {}
@@ -163,7 +172,7 @@ async def handle_request(request: dict) -> dict:
                             "properties": {
                                 "agent": {
                                     "type": "string",
-                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, graphic_designer, design_reviewer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist"
+                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, allstate_compliance, insurance_backend, design_reviewer, ds_orchestrator, data_engineer, eda_agent, feature_engineer, modeler, evaluator, visualizer, statistician, mlops, graphic_designer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist"
                                 },
                                 "task": {
                                     "type": "string",
@@ -260,13 +269,23 @@ async def handle_request(request: dict) -> dict:
                     },
                     {
                         "name": "get_workflow_context",
-                        "description": "Get accumulated context from all completed agents to pass to the next agent.",
+                        "description": "Get accumulated context from all completed agents to pass to the next agent. Supports compression to prevent context overflow.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
                                 "workflow_id": {
                                     "type": "string",
                                     "description": "The workflow ID"
+                                },
+                                "compress": {
+                                    "type": "boolean",
+                                    "default": True,
+                                    "description": "Compress agent summaries to prevent context overflow (default: true)"
+                                },
+                                "max_summary_chars": {
+                                    "type": "integer",
+                                    "default": 500,
+                                    "description": "Maximum characters per agent summary when compressed (default: 500)"
                                 }
                             },
                             "required": ["workflow_id"]
@@ -397,6 +416,7 @@ async def handle_request(request: dict) -> dict:
                 }
             }
         except Exception as e:
+            logger.exception(f"Tool execution failed: {tool_name}")
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -500,7 +520,7 @@ Task(
 
                 agent_config = AGENTS[agent_name]
 
-                # Build complete Task-ready prompt
+                # Build complete Task-ready prompt with Ralph Wiggum validation
                 full_prompt = f"""{agent_config['system_prompt']}
 
 ---
@@ -510,6 +530,31 @@ Task(
 
 ## Working Directory
 {working_dir}
+
+## Ralph Wiggum Validation Loop (REQUIRED)
+
+Before declaring your work complete, you MUST validate it objectively:
+
+### Validation Checklist
+1. **Run tests** - If tests exist, run them: `pytest`, `npm test`, `vitest`, etc.
+2. **Run linter** - Check code quality: `ruff check .`, `npm run lint`, etc.
+3. **Run type checker** - If applicable: `mypy .`, `tsc --noEmit`, etc.
+4. **Build succeeds** - If applicable: `npm run build`, `cargo build`, etc.
+
+### Iteration Loop
+```
+Implement → Run validators → Fix failures → Re-run validators → Complete ONLY when all pass
+```
+
+**CRITICAL**: Do NOT mark your work as done based on what you *think* is correct.
+Run the actual validators and only complete when they pass objectively.
+If you hit 5+ failed validation attempts, escalate with a clear summary of what's blocking.
+
+### Context Management
+To prevent context overflow:
+- Summarize previous agent outputs, don't repeat them verbatim
+- Focus on what changed, not full file contents
+- Keep your final summary under 500 words
 
 ## Instructions
 You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
@@ -625,8 +670,8 @@ prompt = next_agent_prompt + f"\\n\\n## Previous Agent Results\\n{previous_resul
                 if results:
                     analysis["languages"].append(lang)
                     analysis["files_analyzed"] += len(results)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not scan for {lang} files: {e}")
 
         # Detect frameworks from config files
         framework_indicators = {
@@ -738,7 +783,7 @@ You have access to Playwright browser tools. **USE THEM** to verify your work vi
 **Do NOT mark your work complete without visual verification.**
 """ if is_frontend_agent else ""
 
-                # Build complete Task-ready prompt
+                # Build complete Task-ready prompt with Ralph Wiggum validation
                 full_prompt = f"""{agent_config['system_prompt']}
 
 ---
@@ -749,6 +794,31 @@ You have access to Playwright browser tools. **USE THEM** to verify your work vi
 ## Working Directory
 {working_dir}
 {playwright_section}
+## Ralph Wiggum Validation Loop (REQUIRED)
+
+Before declaring your work complete, you MUST validate it objectively:
+
+### Validation Checklist
+1. **Run tests** - If tests exist, run them: `pytest`, `npm test`, `vitest`, etc.
+2. **Run linter** - Check code quality: `ruff check .`, `npm run lint`, etc.
+3. **Run type checker** - If applicable: `mypy .`, `tsc --noEmit`, etc.
+4. **Build succeeds** - If applicable: `npm run build`, `cargo build`, etc.
+
+### Iteration Loop
+```
+Implement → Run validators → Fix failures → Re-run validators → Complete ONLY when all pass
+```
+
+**CRITICAL**: Do NOT mark your work as done based on what you *think* is correct.
+Run the actual validators and only complete when they pass objectively.
+If you hit 5+ failed validation attempts, escalate with a clear summary of what's blocking.
+
+### Context Management
+To prevent context overflow:
+- Summarize previous agent outputs, don't repeat them verbatim
+- Focus on what changed, not full file contents
+- Keep your final summary under 500 words
+
 ## Instructions
 You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
 - Use Read/Glob/Grep to explore the codebase
@@ -912,6 +982,31 @@ Code change → Visual verification → Fix issues → Re-verify → Complete
 {context}
 ''' if context else ''}
 {playwright_instructions}
+## Ralph Wiggum Validation Loop (REQUIRED)
+
+Before declaring your work complete, you MUST validate it objectively:
+
+### Validation Checklist
+1. **Run tests** - If tests exist, run them: `pytest`, `npm test`, `vitest`, etc.
+2. **Run linter** - Check code quality: `ruff check .`, `npm run lint`, etc.
+3. **Run type checker** - If applicable: `mypy .`, `tsc --noEmit`, etc.
+4. **Build succeeds** - If applicable: `npm run build`, `cargo build`, etc.
+
+### Iteration Loop
+```
+Implement → Run validators → Fix failures → Re-run validators → Complete ONLY when all pass
+```
+
+**CRITICAL**: Do NOT mark your work as done based on what you *think* is correct.
+Run the actual validators and only complete when they pass objectively.
+If you hit 5+ failed validation attempts, escalate with a clear summary of what's blocking.
+
+### Context Management
+To prevent context overflow:
+- Summarize previous agent outputs, don't repeat them verbatim
+- Focus on what changed, not full file contents
+- Keep your final summary under 500 words
+
 ## Instructions
 You are now acting as the {agent_config['name']}. Complete your assigned task using the available tools:
 - Use Read/Glob/Grep to explore the codebase
@@ -1110,29 +1205,55 @@ context = get_workflow_context(workflow_id=workflow.id)
 
     elif tool_name == "get_workflow_context":
         workflow_id = args["workflow_id"]
+        compress = args.get("compress", True)  # Default to compressed context
+        max_summary_chars = args.get("max_summary_chars", 500)  # Per-agent summary limit
 
         if workflow_id not in WORKFLOW_STATE:
             raise ValueError(f"Unknown workflow: {workflow_id}")
 
         workflow = WORKFLOW_STATE[workflow_id]
 
-        # Build context from all completed agents
+        # Build context from all completed agents with optional compression
         context_parts = [f"## Workflow: {workflow['task']}\n"]
 
+        total_chars = 0
         for result in workflow["agent_results"]:
-            context_parts.append(f"""
+            summary = result['summary']
+
+            # Compress summary if enabled and summary is too long
+            if compress and len(summary) > max_summary_chars:
+                # Take first and last parts to preserve key info
+                first_part = summary[:max_summary_chars // 2]
+                last_part = summary[-(max_summary_chars // 2):]
+                summary = f"{first_part}\n...[truncated {len(result['summary']) - max_summary_chars} chars]...\n{last_part}"
+
+            agent_context = f"""
 ### {result['agent'].replace('_', ' ').title()} - {result['status'].upper()}
-{result['summary']}
+{summary}
 
 Files modified: {', '.join(result['files_modified']) if result['files_modified'] else 'None'}
 Issues: {', '.join(result['issues']) if result['issues'] else 'None'}
-""")
+"""
+            context_parts.append(agent_context)
+            total_chars += len(agent_context)
+
+        full_context = "\n".join(context_parts)
+        # Token estimation: ~3.5 chars per token for English text with code
+        # This is more accurate for Claude models than the naive 4 chars/token
+        word_count = len(full_context.split())
+        estimated_tokens = max(total_chars // 4, int(word_count * 1.3))  # Use higher estimate
 
         return {
             "workflow_id": workflow_id,
-            "context": "\n".join(context_parts),
+            "context": full_context,
             "files_modified": list(set(workflow["files_modified"])),
             "completed_agents": [r["agent"] for r in workflow["agent_results"]],
+            "context_stats": {
+                "total_chars": total_chars,
+                "estimated_tokens": estimated_tokens,
+                "compressed": compress,
+                "warning": "Context is large, consider using compress=true" if estimated_tokens > 5000 else None
+            },
             "usage": "Pass this context to the next agent's prompt to maintain continuity"
         }
 
@@ -1731,14 +1852,29 @@ Use the `allstate_compliance` agent for full compliance review, or
 
 
 async def main():
-    """Run the MCP server."""
+    """Run the MCP server with graceful shutdown handling."""
+    import signal
+
+    shutdown_requested = False
+
+    def signal_handler(signum, frame):
+        nonlocal shutdown_requested
+        logger.info(f"Received signal {signum}, shutting down gracefully...")
+        shutdown_requested = True
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     # Read from stdin, write to stdout
-    while True:
+    while not shutdown_requested:
         try:
-            line = await asyncio.get_event_loop().run_in_executor(
-                None, sys.stdin.readline
-            )
+            loop = asyncio.get_event_loop()
+            line = await loop.run_in_executor(None, sys.stdin.readline)
+
+            # Handle EOF (stdin closed)
             if not line:
+                logger.info("EOF received, shutting down...")
                 break
 
             request = json.loads(line)
@@ -1746,9 +1882,20 @@ async def main():
 
             print(json.dumps(response), flush=True)
 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            logger.warning(f"Invalid JSON received: {e}")
             continue
+        except EOFError:
+            logger.info("EOF received, shutting down...")
+            break
+        except (BrokenPipeError, ConnectionResetError) as e:
+            logger.warning(f"Connection closed: {e}")
+            break
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt, shutting down...")
+            break
         except Exception as e:
+            logger.exception("Unexpected error in main loop")
             error_response = {
                 "jsonrpc": "2.0",
                 "id": None,
@@ -1757,7 +1904,12 @@ async def main():
                     "message": str(e)
                 }
             }
-            print(json.dumps(error_response), flush=True)
+            try:
+                print(json.dumps(error_response), flush=True)
+            except BrokenPipeError:
+                break
+
+    logger.info("MCP server shutdown complete")
 
 
 if __name__ == "__main__":

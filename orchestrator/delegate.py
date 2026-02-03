@@ -2410,7 +2410,7 @@ async def delegate(
     max_iterations: int = 15,
     model: str = "claude-sonnet-4-20250514",
     # Ralph Wiggum validation options
-    validate: bool = False,
+    validate: bool = True,
     validators: Optional[List[Callable]] = None,
     validation_max_iterations: int = 5,
     auto_validate: bool = True,  # Auto-detect validators based on agent type

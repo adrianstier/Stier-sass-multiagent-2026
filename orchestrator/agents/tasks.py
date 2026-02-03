@@ -62,13 +62,27 @@ class GateDecision:
     @classmethod
     def _parse_json_format(cls, response: str) -> Optional["GateDecision"]:
         """Parse JSON gate decision block."""
-        # Look for JSON code block with gate_decision
-        json_pattern = r'```(?:json)?\s*(\{[^`]*"gate_decision"[^`]*\})\s*```'
-        match = re.search(json_pattern, response, re.DOTALL | re.IGNORECASE)
+        # Look for JSON code block - extract content between ``` markers
+        code_block_pattern = r'```(?:json)?\s*([\s\S]*?)```'
+        matches = re.findall(code_block_pattern, response, re.IGNORECASE)
 
-        if match:
+        for block_content in matches:
+            # Try to parse each code block as JSON
             try:
-                data = json.loads(match.group(1))
+                # Find JSON object boundaries properly
+                block_content = block_content.strip()
+                if not block_content.startswith('{'):
+                    continue
+                data = json.loads(block_content)
+                if "gate_decision" in str(data):
+                    break
+            except json.JSONDecodeError:
+                continue
+        else:
+            return None  # No valid JSON block found
+
+        if data:
+            try:
                 decision_data = data.get("gate_decision", data)
                 return cls(
                     status=decision_data.get("status", "PENDING"),

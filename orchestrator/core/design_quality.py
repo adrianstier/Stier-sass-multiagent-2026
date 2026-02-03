@@ -393,7 +393,14 @@ def create_accessibility_validator(
     """Validate accessibility using Playwright's accessibility snapshot."""
 
     async def validator(output: Any, context: Dict[str, Any]) -> ValidationResult:
-        target_url = url or context.get("url", "http://localhost:3000")
+        target_url = url or context.get("url")
+        if not target_url:
+            return ValidationResult(
+                passed=False,
+                score=0,
+                details={"error": "No URL provided. Set url parameter or context['url']."},
+                feedback="Accessibility check requires a URL to test. Pass url parameter or include 'url' in context."
+            )
 
         try:
             # Run accessibility check via Playwright

@@ -17,8 +17,9 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/1"
 
-    # Authentication
-    jwt_secret_key: str = secrets.token_urlsafe(32)  # Override in production!
+    # Authentication - JWT_SECRET_KEY MUST be set in production via environment variable
+    # If not set, generates a random key (invalidates tokens on restart - OK for development only)
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 7

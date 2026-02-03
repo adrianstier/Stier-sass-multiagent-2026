@@ -159,9 +159,10 @@ class GitTools:
             worktree_status = line[1]
             filename = line[3:]
 
-            # Handle renames
+            # Handle renames (format: "old_name -> new_name")
             if " -> " in filename:
-                filename = filename.split(" -> ")[1]
+                parts = filename.split(" -> ")
+                filename = parts[1] if len(parts) > 1 else parts[0]
 
             if index_status == "?":
                 untracked.append(filename)

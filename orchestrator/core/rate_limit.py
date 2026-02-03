@@ -75,29 +75,51 @@ class RedisRateLimiter:
             self._client = redis.from_url(self.redis_url)
         return self._client
 
+    # Lua script for atomic rate limiting - checks BEFORE adding
+    RATE_LIMIT_SCRIPT = """
+    local key = KEYS[1]
+    local limit = tonumber(ARGV[1])
+    local window = tonumber(ARGV[2])
+    local now = tonumber(ARGV[3])
+
+    -- Remove old entries
+    redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+
+    -- Get current count
+    local count = redis.call('ZCARD', key)
+
+    -- Check if under limit BEFORE adding
+    if count < limit then
+        -- Add this request
+        redis.call('ZADD', key, now, tostring(now) .. ':' .. tostring(math.random()))
+        redis.call('EXPIRE', key, window)
+        return {1, limit - count - 1}
+    else
+        -- Over limit, don't add
+        redis.call('EXPIRE', key, window)
+        return {0, 0}
+    end
+    """
+
     def is_allowed(self, key: str, limit: int, window_seconds: int = 60) -> tuple[bool, int]:
-        """Check if request is allowed using sliding window."""
+        """Check if request is allowed using sliding window (atomic via Lua script)."""
         now = time.time()
         window_key = f"ratelimit:{key}"
 
-        pipe = self.client.pipeline()
+        # Use Lua script for atomic check-then-add
+        result = self.client.eval(
+            self.RATE_LIMIT_SCRIPT,
+            1,  # Number of keys
+            window_key,
+            limit,
+            window_seconds,
+            now
+        )
 
-        # Remove old entries
-        pipe.zremrangebyscore(window_key, 0, now - window_seconds)
-        # Count current entries
-        pipe.zcard(window_key)
-        # Add current request
-        pipe.zadd(window_key, {str(now): now})
-        # Set expiry
-        pipe.expire(window_key, window_seconds)
+        allowed = bool(result[0])
+        remaining = int(result[1])
 
-        results = pipe.execute()
-        current_count = results[1]
-
-        if current_count >= limit:
-            return False, 0
-
-        return True, limit - current_count - 1
+        return allowed, remaining
 
     def get_token_usage(self, org_id: str) -> int:
         """Get current month's token usage for an organization."""
