@@ -68,6 +68,209 @@ from orchestrator.tools.code_analysis import CodeAnalyzer, CodeAnalysisConfig
 
 
 # =============================================================================
+# Available Claude Code Skills (Plugins)
+# These skills extend agent capabilities - agents should use them when relevant
+# =============================================================================
+
+AVAILABLE_SKILLS = {
+    # Code Quality & Review
+    "coderabbit": "External AI code review with 40+ static analyzers. Use /coderabbit for second opinion on code changes.",
+    "pr-review-toolkit": "Specialized PR review agents for comments, tests, error handling, type design, and code quality.",
+    "security-guidance": "Security warnings when editing files - detects injection, XSS, unsafe patterns.",
+    "ralph-loop": "Iterative self-improvement loops. Use /ralph for tasks requiring multiple refinement passes.",
+
+    # Codebase Understanding
+    "greptile": "AI-powered codebase search. Use natural language to find code, understand architecture.",
+    "context7": "Up-to-date documentation lookup. Pull version-specific docs directly into context.",
+    "superpowers": "TDD workflows, systematic debugging, and red/green testing patterns.",
+
+    # Development Workflows
+    "feature-dev": "Comprehensive feature development workflow with architecture design and quality review.",
+    "hookify": "Create custom hooks to prevent unwanted behaviors from conversation patterns.",
+
+    # Error & Monitoring
+    "sentry": "Error monitoring - access error reports, analyze stack traces, debug production issues.",
+    "posthog": "Analytics platform - query insights, manage feature flags, run A/B experiments.",
+
+    # Project Management
+    "linear": "Issue tracking - create issues, manage projects, update statuses, search workspaces.",
+    "atlassian": "Jira/Confluence integration - search/create issues, access documentation, manage sprints.",
+    "Notion": "Workspace integration - search pages, manage databases, access knowledge base.",
+    "slack": "Team communication - search messages, access channels, find relevant discussions.",
+
+    # Data Science & AI
+    "huggingface-skills": "Open source AI models - build, train, evaluate, and use models and datasets.",
+    "pinecone": "Vector database - manage indexes, query data, build RAG applications.",
+
+    # Backend Services
+    "firebase": "Google Firebase - Firestore, auth, cloud functions, hosting, storage.",
+    "stripe": "Payment integration - Stripe development and testing.",
+    "supabase": "Supabase - MCP tools (mcp__supabase__*) AND CLI (supabase). MCP: list_projects, execute_sql, get_tables, apply_migration, generate_typescript_types. CLI: `supabase db push`, `supabase gen types`, `supabase functions deploy`, `supabase migration new`. Use MCP for queries/inspection, CLI for local dev and deployments.",
+
+    # Deployment & Hosting
+    "vercel": "Vercel - MCP tools (mcp__vercel__*) AND CLI (vercel). MCP: get_projects, get_deployments, get_deployment_logs, search_docs. CLI: `vercel deploy`, `vercel env pull`, `vercel logs`, `vercel dev`. Use MCP for inspection/debugging, CLI for deployments and local dev.",
+    "railway": "Railway - MCP tools (mcp__railway__*) AND CLI (railway). MCP: check-railway-status, list-environments, get-env-vars, view-logs. CLI: `railway run`, `railway up`, `railway logs`, `railway link`, `railway variables`. Use MCP for inspection, CLI for deployments.",
+
+    # Version Control
+    "github": "GitHub - MCP tools (mcp__github__*) AND CLI (gh). MCP: create_issue, create_pull_request, get_file_contents, search_code. CLI: `gh pr create`, `gh issue create`, `gh repo clone`, `gh workflow run`. Use both for full GitHub automation.",
+    "gitlab": "GitLab - MCP tools (mcp__gitlab__*) AND CLI (glab). MCP: project access, merge requests, issues. CLI: `glab mr create`, `glab issue create`, `glab ci status`. Use both for GitLab workflows.",
+
+    # Testing & Verification
+    "playwright": "Playwright MCP (mcp__playwright__*) - MANDATORY for frontend verification. browser_navigate (open URLs), browser_snapshot (accessibility tree), browser_take_screenshot (visual capture), browser_click/type/fill_form (interact), browser_console_messages (check JS errors), browser_evaluate (run JS). ALWAYS verify changes visually before declaring done!",
+}
+
+# Map skills to agent roles
+SKILLS_BY_AGENT = {
+    "backend": ["greptile", "sentry", "firebase", "stripe", "supabase", "vercel", "railway", "github", "context7", "coderabbit", "superpowers"],
+    "frontend": ["greptile", "coderabbit", "superpowers", "feature-dev", "sentry", "supabase", "vercel", "github", "playwright"],
+    "reviewer": ["coderabbit", "pr-review-toolkit", "security-guidance", "greptile", "github", "gitlab"],
+    "security": ["security-guidance", "coderabbit", "sentry", "greptile", "github"],
+    "devops": ["sentry", "posthog", "greptile", "context7", "supabase", "vercel", "railway", "github", "gitlab"],
+    "tech_lead": ["greptile", "feature-dev", "superpowers", "coderabbit", "linear", "slack", "supabase", "vercel", "railway", "github", "gitlab"],
+    "analyst": ["Notion", "slack", "atlassian", "linear", "greptile"],
+    "database": ["pinecone", "firebase", "context7", "greptile", "supabase"],
+    "project_manager": ["linear", "slack", "atlassian", "Notion", "posthog"],
+    "ux_engineer": ["Notion", "slack", "greptile", "playwright"],
+    "data_scientist": ["huggingface-skills", "pinecone", "posthog", "greptile", "supabase"],
+    "ds_orchestrator": ["huggingface-skills", "pinecone", "linear", "supabase"],
+    "data_engineer": ["pinecone", "firebase", "greptile", "supabase"],
+    "eda_agent": ["huggingface-skills", "pinecone", "posthog"],
+    "feature_engineer": ["huggingface-skills", "pinecone"],
+    "modeler": ["huggingface-skills", "pinecone", "context7"],
+    "evaluator": ["huggingface-skills", "posthog"],
+    "visualizer": ["posthog", "Notion"],
+    "statistician": ["huggingface-skills", "context7"],
+    "mlops": ["sentry", "posthog", "huggingface-skills"],
+    "creative_director": ["Notion", "slack", "playwright"],
+    "visual_designer": ["Notion", "slack", "playwright"],
+    "motion_designer": ["Notion", "context7"],
+    "brand_strategist": ["Notion", "slack"],
+    "design_systems_architect": ["Notion", "context7", "greptile", "playwright"],
+    "content_designer": ["Notion", "slack", "greptile"],
+    "illustration_specialist": ["Notion"],
+    # Insurance/compliance agents
+    "allstate_compliance": ["security-guidance", "coderabbit", "greptile"],
+    "insurance_backend": ["greptile", "sentry", "firebase", "stripe", "supabase", "coderabbit", "superpowers"],
+    # Design agents
+    "design_reviewer": ["coderabbit", "pr-review-toolkit", "Notion", "greptile", "playwright"],
+    "graphic_designer": ["Notion", "slack", "playwright"],
+}
+
+
+def get_skills_prompt(agent_type: str) -> str:
+    """Generate skills documentation for an agent type."""
+    skills = SKILLS_BY_AGENT.get(agent_type, [])
+    if not skills:
+        return ""
+
+    # Separate MCP tools from slash commands
+    # Tools that have BOTH MCP and CLI access
+    MCP_TOOLS = {"supabase", "firebase", "pinecone", "vercel", "railway", "github", "gitlab", "playwright"}
+
+    mcp_skills = [s for s in skills if s in MCP_TOOLS]
+    slash_skills = [s for s in skills if s not in MCP_TOOLS]
+
+    lines = ["\n## CRITICAL: Available Tools and Skills - YOU MUST USE THESE"]
+
+    # MCP + CLI Tools section (highest priority)
+    if mcp_skills:
+        lines.append("\n### MCP Tools + CLI Commands (USE THESE for infrastructure/deployment):")
+        lines.append("You have BOTH MCP tools (mcp__*) AND CLI commands available:\n")
+        for skill in mcp_skills:
+            if skill in AVAILABLE_SKILLS:
+                lines.append(f"- **{skill}**: {AVAILABLE_SKILLS[skill]}")
+
+        # Add explicit Supabase instructions if available
+        if "supabase" in mcp_skills:
+            lines.append("\n**SUPABASE (MCP + CLI):**")
+            lines.append("- MCP tools: mcp__supabase__list_projects, mcp__supabase__execute_sql, mcp__supabase__get_tables")
+            lines.append("- CLI commands: `supabase db push`, `supabase gen types typescript`, `supabase functions deploy`")
+            lines.append("- Use MCP for queries/inspection, CLI for local dev, migrations, and deployments")
+            lines.append("- ALWAYS prefer these over writing raw SQL files manually")
+
+        # Add explicit Vercel instructions if available
+        if "vercel" in mcp_skills:
+            lines.append("\n**VERCEL (MCP + CLI):**")
+            lines.append("- MCP tools: mcp__vercel__get_projects, mcp__vercel__get_deployments, mcp__vercel__get_deployment_logs")
+            lines.append("- CLI commands: `vercel deploy`, `vercel env pull`, `vercel logs <url>`, `vercel dev`")
+            lines.append("- Use MCP for inspection/debugging, CLI for deployments and local dev")
+            lines.append("- ALWAYS fetch logs via MCP/CLI before guessing at deployment issues")
+
+        # Add explicit Railway instructions if available
+        if "railway" in mcp_skills:
+            lines.append("\n**RAILWAY (MCP + CLI):**")
+            lines.append("- MCP tools: mcp__railway__check-railway-status, mcp__railway__list-environments, mcp__railway__view-logs")
+            lines.append("- CLI commands: `railway run <cmd>`, `railway up`, `railway logs`, `railway link`, `railway variables`")
+            lines.append("- Use MCP for inspection, CLI for deployments and running commands")
+
+        # Add explicit GitHub instructions if available
+        if "github" in mcp_skills:
+            lines.append("\n**GITHUB (MCP + CLI):**")
+            lines.append("- MCP tools: mcp__github__create_issue, mcp__github__create_pull_request, mcp__github__search_code")
+            lines.append("- CLI commands: `gh pr create`, `gh pr view`, `gh issue create`, `gh repo clone`, `gh workflow run`")
+            lines.append("- Use MCP for programmatic access, CLI for interactive workflows")
+            lines.append("- ALWAYS use gh/MCP for PR and issue management instead of manual GitHub UI")
+
+        # Add explicit GitLab instructions if available
+        if "gitlab" in mcp_skills:
+            lines.append("\n**GITLAB (MCP + CLI):**")
+            lines.append("- MCP tools: mcp__gitlab__* for project access, merge requests, issues")
+            lines.append("- CLI commands: `glab mr create`, `glab mr view`, `glab issue create`, `glab ci status`")
+            lines.append("- Use both for full GitLab automation")
+
+        # Add explicit Playwright instructions if available (CRITICAL for frontend!)
+        if "playwright" in mcp_skills:
+            lines.append("\n**PLAYWRIGHT VERIFICATION (MANDATORY for UI work!):**")
+            lines.append("You MUST verify all frontend changes with Playwright before declaring done!")
+            lines.append("")
+            lines.append("**Verification Workflow (DO THIS EVERY TIME):**")
+            lines.append("1. Start dev server (check actual port from output, don't assume 3000)")
+            lines.append("2. mcp__playwright__browser_navigate to the page")
+            lines.append("3. mcp__playwright__browser_snapshot to check accessibility tree")
+            lines.append("4. mcp__playwright__browser_take_screenshot to capture visual state")
+            lines.append("5. mcp__playwright__browser_console_messages to check for JS errors")
+            lines.append("6. If ANY issues found → FIX THEM and re-verify")
+            lines.append("7. Only declare done when ALL checks pass")
+            lines.append("")
+            lines.append("**Key Tools:**")
+            lines.append("- browser_navigate: Open URL (use actual port from dev server!)")
+            lines.append("- browser_snapshot: Get accessibility tree (better than screenshot for structure)")
+            lines.append("- browser_take_screenshot: Visual capture")
+            lines.append("- browser_click/type/fill_form: Test interactions")
+            lines.append("- browser_console_messages: Check for JS errors (MUST be clean!)")
+            lines.append("- browser_evaluate: Run JS to test functionality")
+            lines.append("")
+            lines.append("**NEVER skip visual verification! NEVER declare success without testing!**")
+
+    # Slash commands section
+    if slash_skills:
+        lines.append("\n### Slash Command Skills:")
+        lines.append("Invoke these with /<skill-name> when helpful:\n")
+        for skill in slash_skills:
+            if skill in AVAILABLE_SKILLS:
+                lines.append(f"- **/{skill}**: {AVAILABLE_SKILLS[skill]}")
+
+    lines.append("\n**IMPORTANT**: Prefer using these integrated tools over manual alternatives.")
+    return "\n".join(lines)
+
+
+def _get_full_system_prompt(agent: str) -> str:
+    """Get the complete system prompt for an agent including skills documentation.
+
+    Combines the agent's base system_prompt with relevant skills documentation.
+    """
+    if agent not in AGENTS:
+        return ""
+
+    base_prompt = AGENTS[agent]["system_prompt"]
+    skills_prompt = get_skills_prompt(agent)
+
+    if skills_prompt:
+        return f"{base_prompt}\n{skills_prompt}"
+    return base_prompt
+
+
+# =============================================================================
 # Agent Definitions
 # =============================================================================
 
@@ -154,14 +357,36 @@ Multiple projects may run simultaneously on this machine. NEVER assume port 3000
 - Create React App: `PORT=<num>` env var
 - Webpack Dev Server: `--port <num>`
 
-## Workflow: ALWAYS Test Visually!
+## MANDATORY Verification Loop (DO NOT SKIP!)
+You MUST verify every change with Playwright. Never declare success without visual verification!
+
+### Verification Checklist (ALL must pass):
+- [ ] Page loads without errors
+- [ ] No console errors (check browser_console_messages)
+- [ ] UI matches intended design
+- [ ] Interactive elements work (click, hover, form submit)
+- [ ] Responsive at different viewport sizes
+- [ ] Accessibility tree is correct (browser_snapshot)
+
+### Workflow:
 1. Write your code
-2. Start dev server with dynamic port or explicit non-3000 port
-3. Use `browser_navigate` to load the page/component (use actual port!)
-4. Use `browser_snapshot` to verify accessibility and structure
-5. Use `browser_take_screenshot` to capture visual appearance
-6. Use `browser_console_messages` to check for errors
-7. Iterate until it looks AND works perfectly
+2. Start dev server - READ THE OUTPUT to find actual port (NOT always 3000!)
+3. Use `browser_navigate` to load the page (use actual port from server output!)
+4. Use `browser_console_messages` - if ANY errors, FIX THEM before proceeding
+5. Use `browser_snapshot` to verify accessibility tree structure
+6. Use `browser_take_screenshot` to capture visual state
+7. If ANYTHING is wrong:
+   - Fix the issue in code
+   - Restart/refresh if needed
+   - Re-run steps 3-6
+8. ONLY declare done when ALL checks pass with zero errors
+
+### Common Mistakes to Avoid:
+- Assuming port 3000 (check actual port from server output!)
+- Declaring success without running browser_console_messages
+- Ignoring hydration errors or React warnings
+- Not testing interactive elements actually work
+- Not checking mobile/responsive views
 
 ## Design Thinking (CRITICAL)
 Before coding, commit to a BOLD aesthetic direction:
@@ -2324,7 +2549,7 @@ Working Directory: {working_dir}
         response = client.messages.create(
             model=model,
             max_tokens=4096,
-            system=agent_config["system_prompt"],
+            system=_get_full_system_prompt(agent),
             messages=messages,
             tools=tool_definitions if tool_definitions else None,
         )
@@ -2535,7 +2760,7 @@ Working Directory: {cwd}
         response = client.messages.create(
             model=model,
             max_tokens=4096,
-            system=agent_config["system_prompt"],
+            system=_get_full_system_prompt(agent),
             messages=messages,
             tools=tool_definitions if tool_definitions else None,
         )
