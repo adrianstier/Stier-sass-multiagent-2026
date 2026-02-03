@@ -194,12 +194,30 @@ endpoints using JWT tokens. The frontend has LoginForm and RegisterForm componen
         messages = self.conversation_history.copy()
         max_iterations = 10
 
-        # Get delay setting
+        # Get delay setting and context limits
         try:
             from orchestrator.core.config import settings
             api_delay = settings.api_request_delay_seconds
+            max_context_tokens = settings.context_window_max_tokens
+            critical_threshold = settings.context_critical_threshold
+            reserved_output_tokens = settings.reserved_output_tokens
         except ImportError:
-            api_delay = 2.0  # Default 2 second delay
+            api_delay = 2.0
+            max_context_tokens = 180000
+            critical_threshold = 0.85
+            reserved_output_tokens = 8192
+
+        # Import context management helpers
+        from orchestrator.core.context_manager import (
+            estimate_tokens,
+            estimate_request_tokens,
+            truncate_messages_to_fit,
+        )
+        import anthropic
+
+        # Pre-compute system prompt tokens
+        system_prompt_tokens = estimate_tokens(self.SYSTEM_PROMPT)
+        tool_tokens = len(tools) * 120
 
         for iteration in range(max_iterations):
             # Add delay between iterations to avoid rate limits
@@ -207,13 +225,43 @@ endpoints using JWT tokens. The frontend has LoginForm and RegisterForm componen
                 print(f"  (waiting {api_delay}s to avoid rate limits...)")
                 time.sleep(api_delay)
 
-            response = client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                system=self.SYSTEM_PROMPT,
-                messages=messages,
-                tools=tools,
-            )
+            # Pre-flight token check
+            request_tokens = estimate_request_tokens(self.SYSTEM_PROMPT, messages, tools)
+            usage_pct = request_tokens / max_context_tokens
+
+            if usage_pct >= critical_threshold:
+                print(f"  (context at {usage_pct:.1%}, truncating messages...)")
+                messages = truncate_messages_to_fit(
+                    messages,
+                    max_context_tokens,
+                    system_prompt_tokens,
+                    tool_tokens,
+                    reserved_output_tokens
+                )
+
+            # Make API call with error handling
+            try:
+                response = client.messages.create(
+                    model=self.model,
+                    max_tokens=4096,
+                    system=self.SYSTEM_PROMPT,
+                    messages=messages,
+                    tools=tools,
+                )
+            except anthropic.BadRequestError as e:
+                error_msg = str(e).lower()
+                if "context" in error_msg or "too long" in error_msg or "token" in error_msg:
+                    print(f"  (context overflow, emergency truncation...)")
+                    messages = messages[-4:] if len(messages) > 4 else messages
+                    response = client.messages.create(
+                        model=self.model,
+                        max_tokens=4096,
+                        system=self.SYSTEM_PROMPT,
+                        messages=messages,
+                        tools=tools,
+                    )
+                else:
+                    raise
 
             # Process response
             assistant_content = []

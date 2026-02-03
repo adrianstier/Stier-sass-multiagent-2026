@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     default_run_token_budget: int = 100000  # 100k tokens per run
     default_org_monthly_limit: int = 1000000  # 1M tokens per month
 
+    # Context window management (prevents 500 errors from token overflow)
+    context_window_max_tokens: int = 180000  # Leave 20K buffer from 200K limit
+    context_warning_threshold: float = 0.7   # Warn at 70% usage
+    context_critical_threshold: float = 0.85  # Truncate at 85% usage
+    reserved_output_tokens: int = 8192       # Reserve tokens for response
+    max_system_prompt_tokens: int = 15000    # Cap system prompts to prevent overflow
+
     # Observability
     log_level: str = "INFO"
     log_format: str = "json"  # json or text

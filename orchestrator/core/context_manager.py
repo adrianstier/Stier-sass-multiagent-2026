@@ -52,7 +52,142 @@ def estimate_tokens_for_messages(messages: List[Dict[str, Any]]) -> int:
             for block in msg["content"]:
                 if isinstance(block, dict) and block.get("type") == "text":
                     total += estimate_tokens(block.get("text", ""))
+                elif isinstance(block, dict) and block.get("type") == "tool_result":
+                    total += estimate_tokens(str(block.get("content", "")))
+                elif isinstance(block, dict) and block.get("type") == "tool_use":
+                    total += estimate_tokens(str(block.get("input", "")))
     return total
+
+
+def estimate_request_tokens(
+    system_prompt: str,
+    messages: List[Dict[str, Any]],
+    tools: Optional[List[Dict[str, Any]]] = None
+) -> int:
+    """Estimate total tokens for an API request.
+
+    Args:
+        system_prompt: The system prompt text
+        messages: List of conversation messages
+        tools: Optional list of tool definitions
+
+    Returns:
+        Estimated total token count for the request
+    """
+    total = estimate_tokens(system_prompt)
+    total += estimate_tokens_for_messages(messages)
+    if tools:
+        # Tools add ~100-150 tokens each for JSON schema
+        total += len(tools) * 120
+    # Add overhead for message formatting
+    total += len(messages) * 10
+    return total
+
+
+def truncate_messages_to_fit(
+    messages: List[Dict[str, Any]],
+    max_tokens: int,
+    system_prompt_tokens: int,
+    tool_tokens: int = 0,
+    reserved_output_tokens: int = 8192
+) -> List[Dict[str, Any]]:
+    """Truncate messages to fit within token limit, preserving most recent.
+
+    Strategy:
+    1. Calculate available tokens for messages
+    2. Keep the most recent messages that fit
+    3. Summarize removed messages into a context note
+
+    Args:
+        messages: List of conversation messages
+        max_tokens: Maximum context window tokens
+        system_prompt_tokens: Tokens used by system prompt
+        tool_tokens: Tokens used by tool definitions
+        reserved_output_tokens: Tokens to reserve for response
+
+    Returns:
+        Truncated list of messages that fits within budget
+    """
+    available = max_tokens - system_prompt_tokens - tool_tokens - reserved_output_tokens
+
+    if available <= 0:
+        logger.error(
+            "context_budget_exhausted",
+            max_tokens=max_tokens,
+            system_prompt_tokens=system_prompt_tokens,
+            tool_tokens=tool_tokens,
+            reserved_output_tokens=reserved_output_tokens
+        )
+        # Return just the last message as emergency fallback
+        return messages[-1:] if messages else []
+
+    # Calculate tokens for each message
+    message_tokens = []
+    for msg in messages:
+        tokens = estimate_tokens(str(msg.get("content", "")))
+        message_tokens.append(tokens)
+
+    # Keep messages from the end until we hit the limit
+    kept_messages = []
+    total_kept = 0
+    removed_count = 0
+
+    for i in range(len(messages) - 1, -1, -1):
+        if total_kept + message_tokens[i] <= available:
+            kept_messages.insert(0, messages[i])
+            total_kept += message_tokens[i]
+        else:
+            removed_count = i + 1
+            break
+
+    if removed_count > 0:
+        # Add a summary note about removed context
+        summary_note = {
+            "role": "user",
+            "content": f"[Note: {removed_count} earlier messages were summarized to fit context window. Continuing from recent context.]"
+        }
+        kept_messages.insert(0, summary_note)
+
+        logger.warning(
+            "messages_truncated",
+            removed_count=removed_count,
+            kept_count=len(kept_messages),
+            tokens_before=sum(message_tokens),
+            tokens_after=total_kept
+        )
+
+    return kept_messages
+
+
+def check_context_limits(
+    system_prompt: str,
+    messages: List[Dict[str, Any]],
+    tools: Optional[List[Dict[str, Any]]] = None
+) -> Tuple[int, float, bool]:
+    """Check if request is within context limits.
+
+    Args:
+        system_prompt: The system prompt text
+        messages: List of conversation messages
+        tools: Optional list of tool definitions
+
+    Returns:
+        Tuple of (estimated_tokens, usage_percentage, needs_truncation)
+    """
+    estimated = estimate_request_tokens(system_prompt, messages, tools)
+
+    # Use default values if settings not available
+    try:
+        max_tokens = settings.context_window_max_tokens
+        critical_threshold = settings.context_critical_threshold
+    except Exception:
+        max_tokens = 180000
+        critical_threshold = 0.85
+
+    usage_pct = estimated / max_tokens
+    needs_truncation = usage_pct >= critical_threshold
+
+    return estimated, usage_pct, needs_truncation
 
 
 # =============================================================================

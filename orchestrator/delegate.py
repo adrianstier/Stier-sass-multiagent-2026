@@ -2525,6 +2525,7 @@ Working Directory: {working_dir}
 
     # Initialize Claude client
     from anthropic import Anthropic
+    import anthropic
     client = Anthropic(api_key=api_key)
 
     messages = [{"role": "user", "content": user_message}]
@@ -2533,12 +2534,41 @@ Working Directory: {working_dir}
     total_tokens = 0
     final_output = ""
 
-    # Get API delay setting
+    # Get API delay setting and context limits
     try:
         from orchestrator.core.config import settings
         api_delay = settings.api_request_delay_seconds
+        max_context_tokens = settings.context_window_max_tokens
+        critical_threshold = settings.context_critical_threshold
+        max_system_prompt_tokens = settings.max_system_prompt_tokens
+        reserved_output_tokens = settings.reserved_output_tokens
     except ImportError:
-        api_delay = 2.0  # Default 2 second delay
+        api_delay = 2.0
+        max_context_tokens = 180000
+        critical_threshold = 0.85
+        max_system_prompt_tokens = 15000
+        reserved_output_tokens = 8192
+
+    # Import context management helpers
+    from orchestrator.core.context_manager import (
+        estimate_tokens,
+        estimate_request_tokens,
+        truncate_messages_to_fit,
+    )
+
+    # Pre-compute system prompt and check size
+    system_prompt = _get_full_system_prompt(agent)
+    system_prompt_tokens = estimate_tokens(system_prompt)
+
+    # If system prompt is too large, use condensed version
+    if system_prompt_tokens > max_system_prompt_tokens:
+        logger.warning(
+            f"System prompt for {agent} is {system_prompt_tokens} tokens, using base prompt only"
+        )
+        system_prompt = AGENTS[agent]["system_prompt"]
+        system_prompt_tokens = estimate_tokens(system_prompt)
+
+    tool_tokens = len(tool_definitions) * 120 if tool_definitions else 0
 
     # Agentic loop
     for iteration in range(max_iterations):
@@ -2546,15 +2576,63 @@ Working Directory: {working_dir}
         if iteration > 0 and api_delay > 0:
             time.sleep(api_delay)
 
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=_get_full_system_prompt(agent),
-            messages=messages,
-            tools=tool_definitions if tool_definitions else None,
-        )
+        # Pre-flight token check
+        request_tokens = estimate_request_tokens(system_prompt, messages, tool_definitions)
+        usage_pct = request_tokens / max_context_tokens
+
+        if usage_pct >= critical_threshold:
+            logger.warning(
+                f"Request at {request_tokens} tokens ({usage_pct:.1%} of limit), truncating messages"
+            )
+            messages = truncate_messages_to_fit(
+                messages,
+                max_context_tokens,
+                system_prompt_tokens,
+                tool_tokens,
+                reserved_output_tokens
+            )
+
+        # Make API call with error handling
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages,
+                tools=tool_definitions if tool_definitions else None,
+            )
+        except anthropic.BadRequestError as e:
+            error_msg = str(e).lower()
+            if "context" in error_msg or "too long" in error_msg or "token" in error_msg:
+                logger.error(f"Context overflow despite checks: {e}")
+                # Emergency truncation - keep only last 2 messages
+                messages = messages[-2:] if len(messages) > 2 else messages
+                try:
+                    response = client.messages.create(
+                        model=model,
+                        max_tokens=4096,
+                        system=system_prompt,
+                        messages=messages,
+                        tools=tool_definitions if tool_definitions else None,
+                    )
+                except Exception as retry_error:
+                    return DelegationResult(
+                        agent=agent,
+                        task=task,
+                        success=False,
+                        output="",
+                        error=f"Context overflow after retry: {retry_error}"
+                    )
+            else:
+                raise
 
         total_tokens += response.usage.input_tokens + response.usage.output_tokens
+
+        # Log token usage for monitoring
+        logger.info(
+            f"API call: iteration={iteration}, input_tokens={response.usage.input_tokens}, "
+            f"output_tokens={response.usage.output_tokens}, cumulative={total_tokens}, messages={len(messages)}"
+        )
 
         # Process response
         assistant_content = []
@@ -2736,6 +2814,7 @@ Working Directory: {cwd}
 
     # Initialize Claude client
     from anthropic import Anthropic
+    import anthropic
     client = Anthropic(api_key=api_key)
 
     messages = [{"role": "user", "content": user_message}]
@@ -2744,12 +2823,41 @@ Working Directory: {cwd}
     total_tokens = 0
     final_output = ""
 
-    # Get API delay setting
+    # Get API delay setting and context limits
     try:
         from orchestrator.core.config import settings
         api_delay = settings.api_request_delay_seconds
+        max_context_tokens = settings.context_window_max_tokens
+        critical_threshold = settings.context_critical_threshold
+        max_system_prompt_tokens = settings.max_system_prompt_tokens
+        reserved_output_tokens = settings.reserved_output_tokens
     except ImportError:
-        api_delay = 2.0  # Default 2 second delay
+        api_delay = 2.0
+        max_context_tokens = 180000
+        critical_threshold = 0.85
+        max_system_prompt_tokens = 15000
+        reserved_output_tokens = 8192
+
+    # Import context management helpers
+    from orchestrator.core.context_manager import (
+        estimate_tokens,
+        estimate_request_tokens,
+        truncate_messages_to_fit,
+    )
+
+    # Pre-compute system prompt and check size
+    system_prompt = _get_full_system_prompt(agent)
+    system_prompt_tokens = estimate_tokens(system_prompt)
+
+    # If system prompt is too large, use condensed version
+    if system_prompt_tokens > max_system_prompt_tokens:
+        logger.warning(
+            f"System prompt for {agent} is {system_prompt_tokens} tokens, using base prompt only"
+        )
+        system_prompt = AGENTS[agent]["system_prompt"]
+        system_prompt_tokens = estimate_tokens(system_prompt)
+
+    tool_tokens = len(tool_definitions) * 120 if tool_definitions else 0
 
     # Agentic loop
     for iteration in range(max_iterations):
@@ -2757,15 +2865,63 @@ Working Directory: {cwd}
         if iteration > 0 and api_delay > 0:
             time.sleep(api_delay)
 
-        response = client.messages.create(
-            model=model,
-            max_tokens=4096,
-            system=_get_full_system_prompt(agent),
-            messages=messages,
-            tools=tool_definitions if tool_definitions else None,
-        )
+        # Pre-flight token check
+        request_tokens = estimate_request_tokens(system_prompt, messages, tool_definitions)
+        usage_pct = request_tokens / max_context_tokens
+
+        if usage_pct >= critical_threshold:
+            logger.warning(
+                f"Request at {request_tokens} tokens ({usage_pct:.1%} of limit), truncating messages"
+            )
+            messages = truncate_messages_to_fit(
+                messages,
+                max_context_tokens,
+                system_prompt_tokens,
+                tool_tokens,
+                reserved_output_tokens
+            )
+
+        # Make API call with error handling
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages,
+                tools=tool_definitions if tool_definitions else None,
+            )
+        except anthropic.BadRequestError as e:
+            error_msg = str(e).lower()
+            if "context" in error_msg or "too long" in error_msg or "token" in error_msg:
+                logger.error(f"Context overflow despite checks: {e}")
+                # Emergency truncation - keep only last 2 messages
+                messages = messages[-2:] if len(messages) > 2 else messages
+                try:
+                    response = client.messages.create(
+                        model=model,
+                        max_tokens=4096,
+                        system=system_prompt,
+                        messages=messages,
+                        tools=tool_definitions if tool_definitions else None,
+                    )
+                except Exception as retry_error:
+                    return DelegationResult(
+                        agent=agent,
+                        task=task,
+                        success=False,
+                        output="",
+                        error=f"Context overflow after retry: {retry_error}"
+                    )
+            else:
+                raise
 
         total_tokens += response.usage.input_tokens + response.usage.output_tokens
+
+        # Log token usage for monitoring
+        logger.info(
+            f"API call: iteration={iteration}, input_tokens={response.usage.input_tokens}, "
+            f"output_tokens={response.usage.output_tokens}, cumulative={total_tokens}, messages={len(messages)}"
+        )
 
         # Process response
         assistant_content = []
