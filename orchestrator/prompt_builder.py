@@ -255,6 +255,15 @@ AGENT_GRAPH = {
         depends_on=["motion_designer", "visual_designer", "frontend"],
         enhances=["frontend"]
     ),
+    # Insurance & Domain-Specific
+    "allstate_ux_test": AgentCapability(
+        name="Allstate UX Test Agent",
+        role_id="allstate_ux_test",
+        strengths=["UX testing", "persona testing", "insurance workflows", "Allstate agency", "usability evaluation", "accessibility testing", "permission testing"],
+        categories=[ChangeCategory.UX_INTERACTION, ChangeCategory.ACCESSIBILITY, ChangeCategory.TESTING],
+        depends_on=["frontend", "ux_designer"],
+        enhances=["frontend", "ux_designer"]
+    ),
 }
 
 

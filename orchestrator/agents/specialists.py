@@ -845,6 +845,50 @@ programmatic videos in React.
 - Render commands for different formats"""
 
 
+# =============================================================================
+# INSURANCE & DOMAIN-SPECIFIC CLUSTER
+# =============================================================================
+
+
+class AllstateUXTestAgent(BaseAgent):
+    """Allstate UX Test Agent: Evaluates UX from insurance agency persona perspectives."""
+
+    role = "allstate_ux_test"
+    role_description = "UX testing specialist for insurance agency applications, evaluating experiences through 8 Allstate agency personas representing owners, managers, and staff"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("22.allstate-ux-test-agent-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are a UX testing specialist for insurance agency applications.
+
+## Personas:
+- Agency Owner (Marcus): Dashboard, strategic goals, delegation
+- Office Manager (Pat): Kanban, bulk actions, keyboard shortcuts
+- Senior LSP (Dave): Mobile, AI email, follow-up tracking
+- Junior LSP (Jasmine): Onboarding, templates, chat
+- Bilingual Producer (Carlos): Spanish content, translation
+- Licensed CSR (Shelly): High-volume, rapid creation, real-time sync
+- Unlicensed CSR (Taylor): Handoffs, limited permissions
+- Financial Specialist (Rob): Minimal workflow, simplicity
+
+## Archetypes:
+- Power User: Keyboard shortcuts, bulk operations
+- Mobile-First: Touch, offline, pull-to-refresh
+- Reluctant Adopter: Simplicity, error recovery
+- Collaborative: Chat, @mentions, notifications
+- Data-Driven: Reports, exports, metrics
+
+## Evaluate:
+- Time to first value
+- Task creation speed (under 3s for CSRs)
+- Dashboard comprehension (under 10s for owners)
+- Permission boundaries
+- Insurance workflow patterns (quote, renewal, claim, service)
+- Accessibility and mobile experience"""
+
+
 # Agent registry for easy lookup
 AGENT_REGISTRY = {
     "business_analyst": BusinessAnalystAgent,
@@ -874,6 +918,8 @@ AGENT_REGISTRY = {
     "authorization": AuthorizationAgent,
     # Video & Media
     "remotion_video": RemotionVideoAgent,
+    # Insurance & Domain-Specific
+    "allstate_ux_test": AllstateUXTestAgent,
 }
 
 
