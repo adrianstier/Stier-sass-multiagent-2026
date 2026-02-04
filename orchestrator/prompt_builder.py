@@ -220,6 +220,32 @@ AGENT_GRAPH = {
         depends_on=["visual_designer", "motion_designer", "content_designer", "illustration_specialist", "design_systems_architect"],
         enhances=["visual_designer", "motion_designer", "frontend"]
     ),
+    # Data Science & R Cluster
+    "tidyverse_r": AgentCapability(
+        name="Tidyverse/R Expert",
+        role_id="tidyverse_r",
+        strengths=["R programming", "tidyverse", "dplyr", "ggplot2", "purrr", "tidymodels", "statistical computing", "data wrangling"],
+        categories=[ChangeCategory.FUNCTIONALITY, ChangeCategory.ARCHITECTURE],
+        depends_on=["data_scientist"],
+        enhances=["nature_figures", "visualizer", "statistician"]
+    ),
+    "nature_figures": AgentCapability(
+        name="Nature Figures Specialist",
+        role_id="nature_figures",
+        strengths=["publication figures", "scientific visualization", "Nature standards", "ggplot2", "colorblind palettes", "vector graphics"],
+        categories=[ChangeCategory.VISUAL_DESIGN],
+        depends_on=["tidyverse_r", "data_scientist", "statistician"],
+        enhances=[]
+    ),
+    # Security & Authorization
+    "authorization": AgentCapability(
+        name="Authorization Expert",
+        role_id="authorization",
+        strengths=["RBAC", "ABAC", "ReBAC", "OAuth", "OIDC", "JWT", "RLS", "access control", "identity", "permissions"],
+        categories=[ChangeCategory.SECURITY, ChangeCategory.ARCHITECTURE],
+        depends_on=["architect", "backend"],
+        enhances=["backend", "frontend", "security"]
+    ),
 }
 
 

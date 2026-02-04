@@ -70,7 +70,7 @@ async def handle_request(request: dict) -> dict:
                 "tools": [
                     {
                         "name": "orchestrate_task",
-                        "description": "[USES CLAUDE MAX] Orchestrate a multi-agent workflow. Returns a complete execution plan with Task-ready prompts for Claude Code to run. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, Creative Director, Visual Designer, Motion Designer, Brand Strategist, Content Designer, Illustration Specialist, Design Systems Architect, and more. No separate API credits needed.",
+                        "description": "[USES CLAUDE MAX] Orchestrate a multi-agent workflow. Returns a complete execution plan with Task-ready prompts for Claude Code to run. Agents include: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, Authorization Expert, Creative Director, Visual Designer, Motion Designer, Brand Strategist, Content Designer, Illustration Specialist, Design Systems Architect, Tidyverse/R Expert, Nature Figures Specialist, and more. No separate API credits needed.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -143,7 +143,7 @@ async def handle_request(request: dict) -> dict:
                     },
                     {
                         "name": "get_workflow_plan",
-                        "description": "[USES CLAUDE MAX] Get a multi-agent workflow plan that Claude Code executes directly. No separate API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, Creative Director, Visual Designer, Motion Designer, Brand Strategist, Content Designer, Illustration Specialist, Design Systems Architect, and more.",
+                        "description": "[USES CLAUDE MAX] Get a multi-agent workflow plan that Claude Code executes directly. No separate API credits needed. Returns agent prompts for: Backend Engineer, Frontend Engineer, Code Reviewer, Security Reviewer, Tech Lead, Business Analyst, Authorization Expert, Creative Director, Visual Designer, Motion Designer, Brand Strategist, Content Designer, Illustration Specialist, Design Systems Architect, Tidyverse/R Expert, Nature Figures Specialist, and more.",
                         "inputSchema": {
                             "type": "object",
                             "properties": {
@@ -172,7 +172,7 @@ async def handle_request(request: dict) -> dict:
                             "properties": {
                                 "agent": {
                                     "type": "string",
-                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, allstate_compliance, insurance_backend, design_reviewer, ds_orchestrator, data_engineer, eda_agent, feature_engineer, modeler, evaluator, visualizer, statistician, mlops, graphic_designer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist"
+                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, allstate_compliance, insurance_backend, design_reviewer, ds_orchestrator, data_engineer, eda_agent, feature_engineer, modeler, evaluator, visualizer, statistician, mlops, graphic_designer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist, tidyverse_r, nature_figures, authorization"
                                 },
                                 "task": {
                                     "type": "string",
