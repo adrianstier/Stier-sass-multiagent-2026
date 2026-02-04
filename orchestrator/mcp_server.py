@@ -172,7 +172,7 @@ async def handle_request(request: dict) -> dict:
                             "properties": {
                                 "agent": {
                                     "type": "string",
-                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, allstate_compliance, insurance_backend, design_reviewer, ds_orchestrator, data_engineer, eda_agent, feature_engineer, modeler, evaluator, visualizer, statistician, mlops, graphic_designer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist, tidyverse_r, nature_figures, authorization"
+                                    "description": "Agent type: backend, frontend, reviewer, security, devops, tech_lead, analyst, database, project_manager, ux_engineer, data_scientist, allstate_compliance, insurance_backend, design_reviewer, ds_orchestrator, data_engineer, eda_agent, feature_engineer, modeler, evaluator, visualizer, statistician, mlops, graphic_designer, creative_director, visual_designer, motion_designer, brand_strategist, design_systems_architect, content_designer, illustration_specialist, tidyverse_r, nature_figures, authorization, remotion_video"
                                 },
                                 "task": {
                                     "type": "string",

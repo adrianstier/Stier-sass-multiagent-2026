@@ -246,6 +246,15 @@ AGENT_GRAPH = {
         depends_on=["architect", "backend"],
         enhances=["backend", "frontend", "security"]
     ),
+    # Video & Media
+    "remotion_video": AgentCapability(
+        name="Remotion Video Expert",
+        role_id="remotion_video",
+        strengths=["video creation", "React video", "programmatic video", "animations", "compositions", "Remotion", "frame-based animation", "video rendering"],
+        categories=[ChangeCategory.ANIMATION, ChangeCategory.VISUAL_DESIGN, ChangeCategory.FUNCTIONALITY],
+        depends_on=["motion_designer", "visual_designer", "frontend"],
+        enhances=["frontend"]
+    ),
 }
 
 

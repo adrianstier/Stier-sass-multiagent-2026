@@ -117,12 +117,15 @@ AVAILABLE_SKILLS = {
 
     # Testing & Verification
     "playwright": "Playwright MCP (mcp__playwright__*) - MANDATORY for frontend verification. browser_navigate (open URLs), browser_snapshot (accessibility tree), browser_take_screenshot (visual capture), browser_click/type/fill_form (interact), browser_console_messages (check JS errors), browser_evaluate (run JS). ALWAYS verify changes visually before declaring done!",
+
+    # Video Creation
+    "remotion": "Remotion skills for React-based video creation. 28 specialized rules covering: compositions, animations, timing, sequencing, 3D (Three.js), charts, audio/video/images, fonts, GIFs, Lottie, text animations, transitions, TailwindCSS, Mapbox, captions/subtitles, transparent videos. CRITICAL: All animations MUST use useCurrentFrame() hook - CSS animations/transitions are FORBIDDEN. Use interpolate() for all motion. Skills installed at ~/.claude/skills/remotion/",
 }
 
 # Map skills to agent roles
 SKILLS_BY_AGENT = {
     "backend": ["greptile", "sentry", "firebase", "stripe", "supabase", "vercel", "railway", "github", "context7", "coderabbit", "superpowers"],
-    "frontend": ["greptile", "coderabbit", "superpowers", "feature-dev", "sentry", "supabase", "vercel", "github", "playwright"],
+    "frontend": ["greptile", "coderabbit", "superpowers", "feature-dev", "sentry", "supabase", "vercel", "github", "playwright", "remotion"],
     "reviewer": ["coderabbit", "pr-review-toolkit", "security-guidance", "greptile", "github", "gitlab"],
     "security": ["security-guidance", "coderabbit", "sentry", "greptile", "github"],
     "devops": ["sentry", "posthog", "greptile", "context7", "supabase", "vercel", "railway", "github", "gitlab"],
@@ -141,9 +144,9 @@ SKILLS_BY_AGENT = {
     "visualizer": ["posthog", "Notion"],
     "statistician": ["huggingface-skills", "context7"],
     "mlops": ["sentry", "posthog", "huggingface-skills"],
-    "creative_director": ["Notion", "slack", "playwright"],
-    "visual_designer": ["Notion", "slack", "playwright"],
-    "motion_designer": ["Notion", "context7"],
+    "creative_director": ["Notion", "slack", "playwright", "remotion"],
+    "visual_designer": ["Notion", "slack", "playwright", "remotion"],
+    "motion_designer": ["Notion", "context7", "remotion"],
     "brand_strategist": ["Notion", "slack"],
     "design_systems_architect": ["Notion", "context7", "greptile", "playwright"],
     "content_designer": ["Notion", "slack", "greptile"],
@@ -153,6 +156,8 @@ SKILLS_BY_AGENT = {
     "nature_figures": ["Notion", "context7"],
     # Security & Authorization
     "authorization": ["security-guidance", "greptile", "context7", "coderabbit"],
+    # Video & Media
+    "remotion_video": ["remotion", "context7", "greptile", "playwright"],
     # Insurance/compliance agents
     "allstate_compliance": ["security-guidance", "coderabbit", "greptile"],
     "insurance_backend": ["greptile", "sentry", "firebase", "stripe", "supabase", "coderabbit", "superpowers"],
@@ -246,6 +251,61 @@ def get_skills_prompt(agent_type: str) -> str:
             lines.append("- browser_evaluate: Run JS to test functionality")
             lines.append("")
             lines.append("**NEVER skip visual verification! NEVER declare success without testing!**")
+
+    # Remotion skills section (special handling for video creation)
+    if "remotion" in skills:
+        lines.append("\n### REMOTION VIDEO CREATION SKILLS:")
+        lines.append("Load skills from ~/.claude/skills/remotion/ when working with Remotion code.")
+        lines.append("")
+        lines.append("**CRITICAL RULES (MUST FOLLOW):**")
+        lines.append("- ALL animations MUST use `useCurrentFrame()` hook + `interpolate()`")
+        lines.append("- CSS animations/transitions are FORBIDDEN - they won't render correctly")
+        lines.append("- Tailwind animation classes are FORBIDDEN")
+        lines.append("- Write animations in seconds, multiply by `fps` from `useVideoConfig()`")
+        lines.append("")
+        lines.append("**Core Skills (load as needed):**")
+        lines.append("- `rules/compositions.md` - Composition setup, stills, folders, calculateMetadata")
+        lines.append("- `rules/animations.md` - Animation patterns with interpolate()")
+        lines.append("- `rules/timing.md` - Easing curves: linear, spring, cubic-bezier")
+        lines.append("- `rules/sequencing.md` - Sequence, delay, trim, duration limits")
+        lines.append("- `rules/transitions.md` - Scene transitions (fade, slide, wipe)")
+        lines.append("")
+        lines.append("**Media Handling:**")
+        lines.append("- `rules/videos.md` - Video embedding, trimming, volume, speed, looping")
+        lines.append("- `rules/audio.md` - Audio import, trimming, volume, pitch")
+        lines.append("- `rules/images.md` - Img component, staticFile()")
+        lines.append("- `rules/fonts.md` - Google Fonts, local fonts loading")
+        lines.append("- `rules/gifs.md` - GIF sync with timeline")
+        lines.append("- `rules/lottie.md` - Lottie animation embedding")
+        lines.append("")
+        lines.append("**Advanced Features:**")
+        lines.append("- `rules/3d.md` - Three.js / React Three Fiber integration")
+        lines.append("- `rules/charts.md` - Data visualization patterns")
+        lines.append("- `rules/text-animations.md` - Typography animation patterns")
+        lines.append("- `rules/maps.md` - Mapbox integration")
+        lines.append("- `rules/tailwind.md` - TailwindCSS setup (styling only, NO animations)")
+        lines.append("- `rules/transparent-videos.md` - Alpha channel rendering")
+        lines.append("- `rules/subtitles.md` - Captions and subtitle handling")
+        lines.append("")
+        lines.append("**Measurement & Metadata:**")
+        lines.append("- `rules/measuring-text.md` - Text dimensions, fit-to-container")
+        lines.append("- `rules/measuring-dom-nodes.md` - DOM element dimensions")
+        lines.append("- `rules/calculate-metadata.md` - Dynamic composition props")
+        lines.append("- `rules/parameters.md` - Zod schema for parametrizable videos")
+        lines.append("")
+        lines.append("**Example - Basic Animation:**")
+        lines.append("```tsx")
+        lines.append("import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';")
+        lines.append("")
+        lines.append("export const FadeIn = () => {")
+        lines.append("  const frame = useCurrentFrame();")
+        lines.append("  const { fps } = useVideoConfig();")
+        lines.append("  const opacity = interpolate(frame, [0, 2 * fps], [0, 1], {")
+        lines.append("    extrapolateRight: 'clamp',")
+        lines.append("  });")
+        lines.append("  return <div style={{ opacity }}>Hello World!</div>;")
+        lines.append("};")
+        lines.append("```")
 
     # Slash commands section
     if slash_skills:
@@ -1885,6 +1945,80 @@ Design/audit responses include:
 - Permission structure (resources, actions, roles)
 - Implementation plan (schema, middleware, endpoints)
 - Security considerations and code samples"""
+    },
+
+    # Video & Media
+    "remotion_video": {
+        "name": "Remotion Video Expert",
+        "queue": "q_video",
+        "tools": ["filesystem", "git", "execution", "code_analysis", "playwright"],
+        "system_prompt": """You are an elite Remotion developer with 5+ years of experience creating
+programmatic videos in React. You specialize in frame-perfect animations, video composition,
+and React-based video rendering pipelines.
+
+## CRITICAL RULES (NEVER VIOLATE)
+- ALL animations MUST use useCurrentFrame() + interpolate()
+- CSS animations/transitions are FORBIDDEN - they will NOT render in video output
+- Tailwind animation classes are FORBIDDEN
+- Write time in seconds, then multiply by fps from useVideoConfig()
+
+## Core APIs
+- useCurrentFrame(): Get current frame number (the heart of all animation)
+- useVideoConfig(): { fps, width, height, durationInFrames }
+- interpolate(frame, [inputRange], [outputRange], options): Map frame to values
+- spring({ frame, fps, config }): Physics-based spring animations
+- Sequence: Time-shift children, control from/durationInFrames
+- AbsoluteFill: Full-frame absolute positioning container
+
+## Composition Setup
+```tsx
+<Composition
+  id="MyVideo"
+  component={MyComponent}
+  durationInFrames={300}  // 10 seconds at 30fps
+  fps={30}
+  width={1920}
+  height={1080}
+  defaultProps={{ title: 'Hello' }}
+/>
+```
+
+## Animation Pattern
+```tsx
+const frame = useCurrentFrame();
+const { fps } = useVideoConfig();
+
+const opacity = interpolate(frame, [0, 1 * fps], [0, 1], {
+  extrapolateRight: 'clamp',
+  easing: Easing.out(Easing.cubic),
+});
+```
+
+## Media Components
+- <Video src={staticFile('video.mp4')} />
+- <Audio src={staticFile('audio.mp3')} volume={0.5} />
+- <Img src={staticFile('image.png')} />
+- <Gif src={staticFile('animation.gif')} />
+
+## Expertise Areas
+- Compositions, stills, folders
+- Scene transitions (@remotion/transitions)
+- Text animations and typography
+- 3D with React Three Fiber (@remotion/three)
+- Charts and data visualization
+- Captions and subtitles (@remotion/captions)
+- Lambda rendering for serverless
+
+## Skills
+Load Remotion skills from ~/.claude/skills/remotion/ for detailed patterns on:
+animations, compositions, timing, sequencing, videos, audio, images, fonts, 3D,
+charts, transitions, text-animations, tailwind, maps, captions, and more.
+
+## Output Format
+- Complete, runnable React/TypeScript code
+- Composition setup with correct fps/duration
+- Render commands for different output formats
+- Frame/time calculations explained"""
     },
 }
 

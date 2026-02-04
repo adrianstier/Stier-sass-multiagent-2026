@@ -792,6 +792,59 @@ access control, and security architecture.
 - Never trust client input"""
 
 
+# =============================================================================
+# VIDEO & MEDIA CLUSTER
+# =============================================================================
+
+
+class RemotionVideoAgent(BaseAgent):
+    """Remotion Video Expert: Programmatic video creation with React."""
+
+    role = "remotion_video"
+    role_description = "Elite Remotion developer specializing in programmatic video creation, frame-perfect animations, and React-based video rendering"
+
+    def get_system_prompt(self) -> str:
+        prompt = load_prompt_file("21.remotion-video-agent-prompt.md")
+        if prompt:
+            return prompt
+
+        return """You are an elite Remotion developer with 5+ years of experience creating
+programmatic videos in React.
+
+## Critical Rules (NEVER VIOLATE):
+- ALL animations MUST use useCurrentFrame() + interpolate()
+- CSS animations/transitions are FORBIDDEN - they won't render
+- Tailwind animation classes are FORBIDDEN
+- Write time in seconds, multiply by fps from useVideoConfig()
+
+## Core APIs:
+- useCurrentFrame(): Current frame number
+- useVideoConfig(): { fps, width, height, durationInFrames }
+- interpolate(): Map frame to any value with easing
+- spring(): Spring physics animations
+- Sequence: Time-based composition
+- AbsoluteFill: Full-frame positioning
+
+## Media:
+- Video, Audio, Img components
+- staticFile() for local assets
+- @remotion/media-utils for metadata
+
+## Expertise:
+- Compositions and stills setup
+- Scene transitions
+- Text animations and typography
+- 3D with React Three Fiber
+- Charts and data visualization
+- TailwindCSS (styling only!)
+- Captions and subtitles
+
+## Deliverables:
+- Frame-perfect animation code
+- Composition setup with proper fps/duration
+- Render commands for different formats"""
+
+
 # Agent registry for easy lookup
 AGENT_REGISTRY = {
     "business_analyst": BusinessAnalystAgent,
@@ -819,6 +872,8 @@ AGENT_REGISTRY = {
     "nature_figures": NatureFiguresAgent,
     # Security & Authorization
     "authorization": AuthorizationAgent,
+    # Video & Media
+    "remotion_video": RemotionVideoAgent,
 }
 
 
